@@ -1,0 +1,962 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no">
+<title>Card Match</title>
+<meta name="theme-color" content="#eef3fb">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Card Match">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="icon" type="image/png" href="icon-192.png">
+<link rel="manifest" href="manifest.json">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Andika:wght@400;700&family=Atkinson+Hyperlegible:wght@400;700&family=Fredoka:wght@500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#EEF3FB; --surface:#FFFFFF; --ink:#1C2A4A; --muted:#55658A; --line:#C9D6E8; --accent:#2F6BED; --accent-ink:#fff;
+  --sun:#FFC92E; --good:#1C9152; --goodbg:#DDF5E7; --bad:#D2374F; --tile:#B9C8DE;
+  box-sizing:border-box; padding-top:env(safe-area-inset-top,0px); padding-bottom:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){ --bg:#111A2C; --surface:#1B2741; --ink:#EAF0FA; --muted:#9DB0CF; --line:#2E3C5A; --accent:#6C9BFF; --accent-ink:#0E1626; --sun:#FFD45C; --good:#4CD18A; --goodbg:#173A2A; --bad:#FF7088; --tile:#34456A; }
+}
+*,*::before,*::after{box-sizing:inherit}
+html{height:100%}
+body{margin:0;min-height:100%;background:var(--bg);color:var(--ink);font-family:"Atkinson Hyperlegible",system-ui,sans-serif;font-size:17px;line-height:1.45}
+h1,h2,h3{font-family:"Fredoka",system-ui,sans-serif;font-weight:600;margin:0;line-height:1.15}
+button,input,select,textarea{font:inherit;color:inherit}
+.wrap{max-width:900px;margin:0 auto;padding:22px 18px 70px}
+.stack>*+*{margin-top:14px}
+.top{display:flex;justify-content:space-between;align-items:flex-end;gap:14px;flex-wrap:wrap;margin-bottom:16px}
+.top h1{font-size:2rem}
+.sub{color:var(--muted);margin:4px 0 0}
+.meta{color:var(--muted);font-size:.92rem;margin:0}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.btn{appearance:none;border:2px solid var(--line);background:var(--surface);border-radius:12px;padding:9px 15px;font-weight:700;cursor:pointer;min-height:44px}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.btn.quiet{border-color:transparent;background:transparent;color:var(--muted)}
+.btn.danger{color:var(--bad)}
+.btn:disabled{opacity:.5}
+.btn:focus-visible,.card:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+.panel{background:var(--surface);border:2px solid var(--line);border-radius:16px;padding:16px}
+label.f{display:block;font-weight:700;font-size:.92rem;margin-bottom:4px}
+input[type=text],input[type=number],input[type=password],select,textarea{width:100%;border:2px solid var(--line);background:var(--bg);border-radius:10px;padding:8px 10px;min-height:44px}
+textarea{min-height:140px;resize:vertical;font-family:inherit}
+.toggle{display:flex;gap:10px;align-items:center;cursor:pointer}
+.toggle input{width:22px;height:22px;accent-color:var(--accent);flex:none}
+.who{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}
+.whob{appearance:none;border:2px solid var(--line);background:var(--surface);border-radius:999px;padding:8px 16px;font-weight:700;cursor:pointer;min-height:44px;font-size:1.05rem}
+.whob.on{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.whob.add{border-style:dashed;color:var(--muted)}
+.prog{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;align-items:center}
+.prog h3{font-size:1.2rem}
+.chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
+.chip{font-size:.85rem;background:var(--bg);border:1px solid var(--line);border-radius:999px;padding:2px 10px}
+.chip.ok{border-color:var(--good);color:var(--good)}
+.seg{display:inline-flex;flex-wrap:wrap;border:2px solid var(--line);border-radius:12px;overflow:hidden}
+.seg button{border:0;background:var(--surface);padding:9px 13px;font-weight:700;cursor:pointer;min-height:44px}
+.seg button.on{background:var(--accent);color:var(--accent-ink)}
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px}
+.veil{position:fixed;inset:0;background:rgba(10,16,30,.55);display:grid;place-items:center;z-index:60;padding:16px;overflow:auto}
+.veil .panel{width:min(560px,96vw);max-height:90vh;overflow:auto}
+.emopick{display:flex;flex-wrap:wrap;gap:6px}
+.emopick button{font-size:1.7rem;width:50px;height:50px;border-radius:12px;border:2px solid var(--line);background:var(--surface);cursor:pointer}
+.emopick button.on{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent)}
+.tgt{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
+.tcard{border:2px solid var(--line);border-radius:12px;padding:8px;text-align:center;background:var(--bg)}
+.tcard .pic{width:100%;aspect-ratio:1;display:grid;place-items:center;background:#fff;border-radius:8px;overflow:hidden}
+.tcard img{max-width:100%;max-height:100%;object-fit:contain}
+.picres{display:grid;grid-template-columns:repeat(auto-fill,minmax(90px,1fr));gap:8px;margin-top:8px}
+.picres button{border:2px solid var(--line);background:#fff;border-radius:10px;padding:4px;cursor:pointer;aspect-ratio:1}
+.picres button.on{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent)}
+.picres img{width:100%;height:100%;object-fit:contain}
+table{border-collapse:collapse;width:100%}
+td,th{text-align:left;padding:7px 6px;border-bottom:1px solid var(--line);vertical-align:top}
+.overflow{overflow-x:auto}
+.yes{color:var(--good);font-weight:700}.no{color:var(--bad);font-weight:700}
+details summary{cursor:pointer;font-weight:700;min-height:32px}
+.pchart{width:300px;max-width:100%;height:auto}
+.pchart text{font-size:10px;fill:var(--muted)}
+.pchart .pgoal{stroke:var(--good);stroke-dasharray:4 4;stroke-width:1}
+.pchart .pg{fill:var(--good)}.pchart .pm{fill:var(--sun)}.pchart .pl{fill:var(--bad)}.pchart .pp{fill:var(--muted);opacity:.55}
+
+/* ---- student screen ---- */
+body.playing{user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;overscroll-behavior:none}
+.play{min-height:100vh;display:flex;flex-direction:column;padding:14px 18px 24px;max-width:1150px;margin:0 auto}
+.pbar{display:flex;justify-content:space-between;align-items:center;min-height:56px}
+.dots{display:flex;gap:7px;flex-wrap:wrap}
+.dot{width:15px;height:15px;border-radius:50%;background:var(--line)}
+.dot.on{background:var(--accent)}.dot.done{background:var(--good)}.dot.miss{background:var(--sun)}
+.lock{position:relative;width:52px;height:52px;border-radius:50%;border:0;background:transparent;cursor:pointer;touch-action:none;flex:none}
+.lock svg{position:absolute;inset:0}
+.lock .ico{position:relative;font-size:20px;opacity:.55}
+.trial{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:space-around;gap:20px}
+.sample{display:flex;flex-direction:column;align-items:center;gap:8px}
+.cards{display:flex;flex-wrap:wrap;gap:18px;justify-content:center;width:100%}
+.card{position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;background:var(--surface);border:3px solid var(--tile);border-bottom-width:9px;border-radius:20px;
+  width:clamp(130px,22vw,220px);aspect-ratio:1;padding:10px;cursor:pointer;touch-action:manipulation;transition:transform .08s}
+.card.big{width:clamp(150px,26vw,250px);cursor:default;border-color:var(--accent);border-bottom-width:3px}
+.card:not(.big):active{transform:translateY(4px);border-bottom-width:5px}
+.card img{max-width:88%;max-height:70%;object-fit:contain;pointer-events:none}
+.card .txt{font-family:Andika,"Atkinson Hyperlegible",system-ui,sans-serif;font-size:clamp(1.6rem,4.5vw,3rem);line-height:1.1;text-align:center;word-break:break-word}
+.card .txt.huge{font-size:clamp(3rem,9vw,5.5rem)}
+.card .cap{font-size:1rem;font-weight:700;color:var(--muted)}
+.card.ok{border-color:var(--good);background:var(--goodbg)}
+.card.hint{border-color:var(--sun);box-shadow:0 0 0 6px color-mix(in srgb,var(--sun) 45%,transparent)}
+.card.no{opacity:.35}
+.qty{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;width:80%}
+.qty i{aspect-ratio:1;border-radius:50%;background:var(--accent)}
+.shake{animation:shake .4s ease}
+@keyframes shake{20%{transform:translateX(-10px)}40%{transform:translateX(10px)}60%{transform:translateX(-6px)}80%{transform:translateX(6px)}}
+.big2{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:20px;text-align:center}
+.big2 h1{font-size:clamp(2.2rem,6vw,3.6rem)}
+.start{font-family:"Fredoka",system-ui,sans-serif;font-size:2rem;padding:20px 60px;border-radius:24px;border:0;border-bottom:9px solid color-mix(in srgb,var(--accent) 65%,#000);background:var(--accent);color:var(--accent-ink);cursor:pointer}
+.start:active{transform:translateY(4px);border-bottom-width:5px}
+.tokens{display:flex;gap:6px}
+.tok{width:30px;height:30px;border-radius:50%;border:3px dashed var(--line);display:grid;place-items:center;font-size:1.1rem}
+.tok.on{border:3px solid var(--sun);background:color-mix(in srgb,var(--sun) 25%,var(--surface))}
+.rfwrap{position:fixed;inset:0;z-index:95;background:#0b1020;touch-action:none;transition:opacity .35s}
+.rfwrap canvas{position:absolute;inset:0;width:100%;height:100%;touch-action:none}
+.rfwrap.rfout{opacity:0}
+.rftimer{position:absolute;top:calc(env(safe-area-inset-top,0px) + 14px);right:14px;width:52px;height:52px;pointer-events:none}
+.rfchoose{display:grid;place-items:center;background:radial-gradient(circle at 50% 30%,#2a2f6b,#0b1020)}
+.rfboard{text-align:center;color:#fff;display:flex;flex-direction:column;gap:16px;align-items:center;padding:20px}
+.rfboard h1{font-size:clamp(2.2rem,6vw,3.4rem)}
+.rfgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:16px;width:min(860px,94vw)}
+.rfgrid button{display:flex;flex-direction:column;align-items:center;gap:8px;background:rgba(255,255,255,.1);border:3px solid rgba(255,255,255,.35);border-bottom-width:8px;color:#fff;border-radius:22px;padding:18px 10px;font-family:"Fredoka",system-ui,sans-serif;font-size:1.4rem;cursor:pointer}
+.rfgrid button span{font-size:3.6rem;line-height:1}
+.rfpick{display:flex;flex-direction:column;gap:8px}
+.rfopt{display:flex;justify-content:space-between;align-items:center;gap:10px;border:2px solid var(--line);border-radius:12px;padding:8px 12px}
+.rfe{font-size:1.8rem}
+.dim{opacity:.55}
+@media (prefers-reduced-motion:reduce){.shake{animation:none}}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<script>
+(() => {
+"use strict";
+const app = document.getElementById("app");
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+const clone = o => JSON.parse(JSON.stringify(o));
+const shuffle = a => { const b = a.slice(); for (let i = b.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [b[i], b[j]] = [b[j], b[i]]; } return b; };
+const fmtDate = t => { try { return new Date(t).toLocaleDateString(undefined, { month: "short", day: "numeric" }); } catch { return ""; } };
+
+/* ---------- storage (this device) ---------- */
+const KEY = "cardmatch.v1";
+let DB = { students: {}, settings: { source: "arasaac", gsKey: "", sound: true, read: true } };
+try { const d = JSON.parse(localStorage.getItem(KEY) || "null"); if (d && d.students) DB = Object.assign(DB, d, { settings: Object.assign(DB.settings, d.settings || {}) }); } catch {}
+DB.deleted = DB.deleted || {};
+DB.settings.sync = Object.assign({ owner: "", repo: "", token: "" }, DB.settings.sync || {});
+const saveLocal = () => { try { localStorage.setItem(KEY, JSON.stringify(DB)); return true; } catch { return false; } };
+const persist = () => { if (saveLocal()) { scheduleSync(); return true; } try { throw 0; } catch { uiAlert("This iPad is out of storage space. Export a backup and remove old students."); return false; } };
+const settings = { get sound() { return DB.settings.sound; }, get read() { return DB.settings.read; } };
+
+
+/* ---------- sync through a private GitHub repository ---------- */
+const SYNC_FILE = "cardmatch-data.json";
+const SY = { state: "off", at: 0, msg: "" };
+let syncTimer = 0, syncing = false, syncAgain = false;
+const syncOn = () => { const s = DB.settings.sync; return !!(s.owner && s.repo && s.token); };
+const b64e = str => { const bytes = new TextEncoder().encode(str); let bin = ""; for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000)); return btoa(bin); };
+const b64d = b64 => new TextDecoder().decode(Uint8Array.from(atob(String(b64).replace(/\s/g, "")), c => c.charCodeAt(0)));
+function gh(path, opt) {
+  const s = DB.settings.sync; opt = opt || {};
+  return fetch(`https://api.github.com/repos/${encodeURIComponent(s.owner.trim())}/${encodeURIComponent(s.repo.trim())}${path}`, Object.assign({ cache: "no-store" }, opt, { headers: Object.assign({ Authorization: `Bearer ${s.token.trim()}`, Accept: "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28" }, opt.headers || {}) }));
+}
+function ghError(r) {
+  if (r.status === 401) return "the key isn't valid or has expired. Make a new one.";
+  if (r.status === 403) return "the key doesn't have permission. It needs Contents: Read and write on the data repo.";
+  if (r.status === 404) return "the repo wasn't found. Check the username and repo name, and that the key includes this repo.";
+  return `GitHub said ${r.status}.`;
+}
+async function pullRemote() {
+  const r = await gh(`/contents/${SYNC_FILE}`);
+  if (r.status === 404) { const repo = await gh(""); if (!repo.ok) throw new Error(ghError(repo)); return { data: null, sha: null }; }
+  if (!r.ok) throw new Error(ghError(r));
+  const j = await r.json();
+  let text = j.content ? b64d(j.content) : "";
+  if (!text && j.size > 0) { const r2 = await gh(`/contents/${SYNC_FILE}`, { headers: { Accept: "application/vnd.github.raw" } }); if (!r2.ok) throw new Error(ghError(r2)); text = await r2.text(); }
+  return { data: text ? JSON.parse(text) : null, sha: j.sha };
+}
+/* merge another copy in without losing anything: sessions are kept from both; for edits, the newest wins */
+function mergeInto(L, R) {
+  if (!R || !R.students) return;
+  const del = Object.assign({}, L.deleted || {});
+  for (const [k, t] of Object.entries(R.deleted || {})) del[k] = Math.max(del[k] || 0, t);
+  L.deleted = del;
+  for (const [id, rs] of Object.entries(R.students)) {
+    const ls = L.students[id];
+    if (!ls) { L.students[id] = rs; continue; }
+    const newer = (rs.updatedAt || 0) > (ls.updatedAt || 0) ? rs : ls;
+    const dp = Object.assign({}, ls.deletedProgs || {});
+    for (const [k, t] of Object.entries(rs.deletedProgs || {})) dp[k] = Math.max(dp[k] || 0, t);
+    const pm = new Map();
+    for (const prog of [...(newer.programs || []), ...((newer === rs ? ls : rs).programs || [])]) { const cur = pm.get(prog.id); if (!cur || (prog.updatedAt || 0) > (cur.updatedAt || 0)) pm.set(prog.id, prog); }
+    const programs = [...pm.values()].filter(x => !(dp[x.id] && dp[x.id] >= (x.updatedAt || 0)));
+    const hm = new Map();
+    for (const h of [...(ls.history || []), ...(rs.history || [])]) { const k = h.at + ":" + h.prog; const cur = hm.get(k); if (!cur || (h.editedAt || 0) > (cur.editedAt || 0)) hm.set(k, h); }
+    L.students[id] = Object.assign({}, newer, { programs, deletedProgs: dp, history: [...hm.values()].sort((a, b) => a.at - b.at).slice(-1500) });
+  }
+  for (const [id, t] of Object.entries(del)) { const st = L.students[id]; if (st && t >= (st.updatedAt || 0)) delete L.students[id]; }
+}
+const payload = () => JSON.stringify({ v: 1, students: DB.students, deleted: DB.deleted || {} });
+function scheduleSync() { if (!syncOn()) return; clearTimeout(syncTimer); syncTimer = setTimeout(syncNow, 4000); }
+async function syncNow() {
+  if (!syncOn()) { SY.state = "off"; return; }
+  if (syncing) { syncAgain = true; return; }
+  syncing = true; SY.state = "busy"; showSync();
+  try {
+    let done = false;
+    for (let attempt = 0; attempt < 3 && !done; attempt++) {
+      const { data, sha } = await pullRemote();
+      const before = payload();
+      if (data) mergeInto(DB, data);
+      saveLocal();
+      const mine = payload();
+      if (data && mine === JSON.stringify({ v: 1, students: data.students || {}, deleted: data.deleted || {} })) { done = true; if (mine !== before && S.view !== "play") render(); break; }
+      const body = { message: `Card Match sync ${new Date().toISOString()}`, content: b64e(mine) };
+      if (sha) body.sha = sha;
+      const r = await gh(`/contents/${SYNC_FILE}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+      if (r.ok) { done = true; if (mine !== before && S.view !== "play") render(); }
+      else if (r.status !== 409 && r.status !== 422) throw new Error(ghError(r));
+    }
+    if (!done) throw new Error("another device was saving at the same time. It will try again.");
+    SY.state = "ok"; SY.at = Date.now(); SY.msg = "";
+  } catch (e) {
+    SY.state = "error"; SY.msg = navigator.onLine === false ? "no internet connection. Changes are saved on this device and will sync later." : (e && e.message) || "something went wrong.";
+  } finally {
+    syncing = false; showSync();
+    if (syncAgain) { syncAgain = false; setTimeout(syncNow, 1500); }
+  }
+}
+function syncLabel() {
+  if (!syncOn()) return `<button class="btn quiet" data-a="settings" style="min-height:0;padding:4px 8px">☁️ Set up sync</button>`;
+  if (SY.state === "busy") return "☁️ Syncing…";
+  if (SY.state === "error") return `<span style="color:var(--bad)">☁️ Not synced: ${esc(SY.msg)}</span> <button class="btn quiet" data-a="syncnow" style="min-height:0;padding:4px 8px">Try again</button>`;
+  if (SY.state === "ok") { const m = Math.round((Date.now() - SY.at) / 60000); return `☁️ Synced ${m < 1 ? "just now" : m === 1 ? "1 minute ago" : m + " minutes ago"} <button class="btn quiet" data-a="syncnow" style="min-height:0;padding:4px 8px">Sync now</button>`; }
+  return `☁️ <button class="btn quiet" data-a="syncnow" style="min-height:0;padding:4px 8px">Sync now</button>`;
+}
+function showSync() { const el = document.getElementById("syncline"); if (el) el.innerHTML = syncLabel(); }
+document.addEventListener("click", e => { const b = e.target.closest('[data-a="syncnow"]'); if (b) { e.stopPropagation(); syncNow(); } }, true);
+document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible" && S.view !== "play") syncNow(); });
+addEventListener("online", () => scheduleSync());
+setInterval(() => { if (document.visibilityState === "visible" && S.view !== "play" && syncOn()) syncNow(); else showSync(); }, 120000);
+
+/* ---------- in-page dialogs ---------- */
+function uiDialog(message, okLabel, cancelLabel) {
+  return new Promise(res => {
+    const v = document.createElement("div"); v.className = "veil"; v.style.zIndex = "90";
+    v.innerHTML = `<div class="panel stack" role="alertdialog" aria-modal="true" style="max-width:440px"><p style="font-size:1.1rem;margin:0">${esc(message)}</p><div class="row">${cancelLabel ? `<button class="btn" data-x="0">${esc(cancelLabel)}</button>` : ""}<button class="btn primary" data-x="1">${esc(okLabel || "OK")}</button></div></div>`;
+    v.addEventListener("click", e => { const b = e.target.closest("[data-x]"); if (!b) return; v.remove(); res(b.dataset.x === "1"); });
+    document.body.appendChild(v);
+  });
+}
+const uiConfirm = (m, ok) => uiDialog(m, ok || "Yes", "Cancel");
+const uiAlert = m => uiDialog(m, "OK");
+
+/* ---------- sound & speech ---------- */
+let actx = null;
+function chime() { if (!settings.sound) return; try { actx = actx || new (window.AudioContext || window.webkitAudioContext)(); const t = actx.currentTime; [660, 880].forEach((f, i) => { const o = actx.createOscillator(), g = actx.createGain(); o.frequency.value = f; const s = t + i * 0.12; g.gain.setValueAtTime(0.0001, s); g.gain.exponentialRampToValueAtTime(0.22, s + 0.02); g.gain.exponentialRampToValueAtTime(0.0001, s + 0.3); o.connect(g); g.connect(actx.destination); o.start(s); o.stop(s + 0.32); }); } catch {} }
+function speak(text) { if (!text || !("speechSynthesis" in window)) return; try { speechSynthesis.cancel(); const u = new SpeechSynthesisUtterance(text); u.rate = 0.9; speechSynthesis.speak(u); } catch {} }
+
+/* ---------- matching relationships (same as Cardmaker) ---------- */
+const NUMW = ["zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten", "eleven", "twelve", "thirteen", "fourteen", "fifteen", "sixteen", "seventeen", "eighteen", "nineteen", "twenty"];
+const REL = [
+  { id: "picture-picture", label: "Picture → picture", s: "picture", c: "picture" },
+  { id: "picture-word", label: "Picture → printed word", s: "picture", c: "text" },
+  { id: "word-picture", label: "Printed word → picture", s: "text", c: "picture" },
+  { id: "word-word", label: "Printed word → printed word", s: "text", c: "text" },
+  { id: "uppercase-lowercase", label: "Uppercase letter → lowercase letter", s: "text", c: "text", sm: v => v.toUpperCase(), cm: v => v.toLowerCase() },
+  { id: "lowercase-uppercase", label: "Lowercase letter → uppercase letter", s: "text", c: "text", sm: v => v.toLowerCase(), cm: v => v.toUpperCase() },
+  { id: "letter-letter", label: "Letter → letter", s: "text", c: "text" },
+  { id: "number-number", label: "Number → number", s: "text", c: "text" },
+  { id: "number-quantity", label: "Number → quantity", s: "text", c: "quantity", sm: v => String(parseInt(v, 10) || 0) },
+  { id: "quantity-number", label: "Quantity → number", s: "quantity", c: "text", cm: v => String(parseInt(v, 10) || 0) },
+  { id: "numeral-number-word", label: "Numeral → number word", s: "text", c: "text", sm: v => String(parseInt(v, 10) || 0), cm: v => NUMW[parseInt(v, 10)] ?? v },
+  { id: "shape-shape", label: "Shape → shape", s: "text", c: "text" },
+  { id: "color-color", label: "Color → color", s: "text", c: "text" },
+  { id: "object-picture", label: "Object → picture", s: "text", c: "picture" },
+  { id: "symbol-symbol", label: "Symbol → symbol", s: "picture", c: "picture" },
+  { id: "identical", label: "Identical matching", s: "text", c: "text" },
+  { id: "non-identical", label: "Non-identical matching (stimulus -> response)", s: "text", c: "text" }
+];
+const relOf = id => REL.find(r => r.id === id) || REL[0];
+function parseTargets(text) {
+  return String(text || "").split(/\r?\n/).map(l => l.trim()).filter(Boolean).map(l => {
+    for (const sep of ["->", "=>", "|"]) if (l.includes(sep)) { const [a, b] = l.split(sep).map(x => x.trim()); if (a && b) return { left: a, right: b }; }
+    return { left: l, right: null };
+  });
+}
+function scoreDiff(a, b) { a = String(a).toLowerCase(); b = String(b).toLowerCase(); let d = Math.abs(a.length - b.length); for (let i = 0; i < Math.max(a.length, b.length); i++) if (a[i] !== b[i]) d++; return d; }
+function pickDistractors(pool, target, needed, rules) {
+  let c = [...new Set(pool.filter(Boolean).map(String))].filter(x => x !== target);
+  if (rules.sameLength) c = c.filter(x => x.length === String(target).length);
+  if (rules.differentInitial) c = c.filter(x => x.charAt(0).toLowerCase() !== String(target).charAt(0).toLowerCase());
+  c = shuffle(c).sort((a, b) => scoreDiff(b, target) - scoreDiff(a, target));
+  const out = [], ini = new Set();
+  for (const x of c) { if (out.length >= needed) break; const i = x.charAt(0).toLowerCase(); if (rules.uniqueInitials && ini.has(i)) continue; out.push(x); ini.add(i); }
+  for (const x of shuffle(pool.filter(Boolean).map(String))) { if (out.length >= needed) break; if (x !== target && !out.includes(x)) out.push(x); }
+  return out;
+}
+/* build one session of trials for a program */
+function buildTrials(p) {
+  const rel = relOf(p.rel), T = parseTargets(p.targets);
+  const live = T.filter(t => !(p.mastered || []).includes(t.left) || p.includeMastered);
+  const use = live.length ? live : T;
+  if (!use.length) return [];
+  const n = Math.max(1, Math.min(60, p.trials || 10));
+  let order = [];
+  while (order.length < n) order = order.concat(p.order === "inorder" ? use : shuffle(use));
+  order = order.slice(0, n);
+  if (p.order !== "inorder") for (let i = 1; i < order.length; i++) if (order[i].left === order[i - 1].left) { const j = order.findIndex((t, k) => k > i && t.left !== order[i].left); if (j > 0) [order[i], order[j]] = [order[j], order[i]]; }
+  const map = (v, f) => f ? f(String(v)) : String(v);
+  return order.map(t => {
+    const base = t.right ?? t.left;
+    const sample = map(t.left, rel.sm), correct = map(base, rel.cm);
+    const pool = T.filter(x => x.left !== t.left).map(x => map(x.right ?? x.left, rel.cm));
+    const dis = pickDistractors(pool, correct, Math.max(0, (p.array || 3) - 1), p.rules || {});
+    const choices = shuffle([correct, ...dis]);
+    const baseOf = v => { const hit = T.find(x => map(x.right ?? x.left, rel.cm) === v); return hit ? (hit.right ?? hit.left) : v; };
+    return { target: t.left, sample, sampleBase: t.left, correct, choices: choices.map(v => ({ v, base: baseOf(v) })) };
+  });
+}
+
+/* ---------- symbols: ARASAAC or Global Symbols ---------- */
+const symCache = {};
+async function searchSymbols(term) {
+  term = String(term || "").trim(); if (!term) return [];
+  const src = DB.settings.source;
+  const key = src + ":" + term.toLowerCase();
+  if (symCache[key]) return symCache[key];
+  let out = [];
+  const tryAras = async () => {
+    const r = await fetch(`https://api.arasaac.org/api/pictograms/en/search/${encodeURIComponent(term)}`);
+    if (!r.ok) return [];
+    const j = await r.json();
+    return (Array.isArray(j) ? j : []).slice(0, 12).map(x => ({ url: `https://static.arasaac.org/pictograms/${x._id}/${x._id}_500.png`, src: "ARASAAC" }));
+  };
+  const tryGS = async () => {
+    const k = DB.settings.gsKey.trim();
+    const base = `https://globalsymbols.com/api/v1/labels/search?query=${encodeURIComponent(term)}&language=eng&language_iso_format=639-3&limit=12`;
+    const attempts = k ? [[base + `&api_key=${encodeURIComponent(k)}`, {}], [base, { headers: { Authorization: `Bearer ${k}` } }], [base, {}]] : [[base, {}]];
+    for (const [url, opt] of attempts) {
+      try {
+        const r = await fetch(url, opt); if (!r.ok) continue;
+        const j = await r.json(); const list = Array.isArray(j) ? j : (j.labels || j.data || j.results || []);
+        const found = list.map(x => x && (x.picto && (x.picto.image_url || x.picto.imageUrl) || x.image_url || x.imageUrl)).filter(Boolean).slice(0, 12).map(url => ({ url, src: "Global Symbols" }));
+        if (found.length) return found;
+      } catch {}
+    }
+    return [];
+  };
+  try {
+    if (src === "globalsymbols") { out = await tryGS(); if (!out.length) out = await tryAras().catch(() => []); }
+    else { out = await tryAras().catch(() => []); if (!out.length && DB.settings.gsKey) out = await tryGS(); }
+  } catch { out = []; }
+  symCache[key] = out;
+  return out;
+}
+async function picFor(p, term) {
+  p.pics = p.pics || {};
+  if (p.pics[term] !== undefined) return p.pics[term];
+  const r = await searchSymbols(term);
+  p.pics[term] = r[0] ? r[0].url : "";
+  persist();
+  return p.pics[term];
+}
+
+/* ---------- state ---------- */
+const S = { view: "home", who: localStorage.getItem("cardmatch.who") || "", modal: null, play: null };
+const students = () => Object.values(DB.students).sort((a, b) => String(a.name).localeCompare(String(b.name)));
+function render() {
+  document.body.classList.toggle("playing", S.view === "play");
+  if (S.view === "play") return renderPlay();
+  if (S.view === "program") return renderProgram();
+  if (S.view === "progress") return renderProgress();
+  if (S.view === "reinf") return renderReinf();
+  if (S.view === "settings") return renderSettings();
+  return renderHome();
+}
+
+/* ---------- home: student tabs + their card sets ---------- */
+const ANIMALS = ["🦊", "🐼", "🐸", "🦁", "🐯", "🐨", "🐵", "🐙", "🦄", "🐢", "🐳", "🦖", "🐝", "🦉", "🐶", "🐱"];
+function renderHome() {
+  const studs = students();
+  if (!DB.students[S.who]) S.who = studs[0] ? studs[0].id : "";
+  const st = DB.students[S.who];
+  app.innerHTML = `<div class="wrap">
+    <div class="top"><div><h1>🃏 Card Match</h1><p class="sub">Cardmaker matching cards, done on the iPad, with data.</p></div>
+      <div class="row"><span id="syncline" class="meta">${syncLabel()}</span><button class="btn" data-a="settings">⚙️ Settings, sync and backup</button></div></div>
+    <div class="who" role="tablist" aria-label="Students">
+      ${studs.map(x => `<button role="tab" class="whob ${st && st.id === x.id ? "on" : ""}" aria-selected="${!!(st && st.id === x.id)}" data-a="who" data-w="${esc(x.id)}"><span aria-hidden="true">${esc(x.emoji)}</span> ${esc(x.name)}</button>`).join("")}
+      <button class="whob add" data-a="addst">+ Add student</button>
+    </div>
+    ${!st ? `<div class="panel" style="text-align:center;padding:40px"><h2>Add your first student</h2><p class="sub">Each student gets their own card sets, reinforcement and data.</p><button class="btn primary" data-a="addst" style="margin-top:14px">+ Add student</button></div>` : `
+    <div class="panel stack">
+      <div class="row" style="justify-content:space-between"><h2 style="font-size:1.6rem"><span aria-hidden="true">${esc(st.emoji)}</span> ${esc(st.name)}</h2>
+        <div class="row"><button class="btn primary" data-a="newprog">+ New card set</button><button class="btn" data-a="reinf">⭐ Reinforcement</button><button class="btn" data-a="progress">📈 Progress</button><button class="btn" data-a="editst">Edit student</button></div></div>
+      <p class="meta">Reinforcement: ${esc(rfLabel(rfCfg(st)))}</p>
+    </div>
+    <div class="stack" style="margin-top:14px">
+      ${(st.programs || []).length ? st.programs.map(p => { const T = parseTargets(p.targets); const last = (st.history || []).filter(h => h.prog === p.id).slice(-1)[0];
+        return `<div class="panel prog"><div><h3>${esc(p.name)}</h3><p class="meta">${esc(relOf(p.rel).label)}, array of ${p.array}, ${p.trials} trials, ${T.length} target${T.length === 1 ? "" : "s"}${(p.mastered || []).length ? `, ${p.mastered.length} mastered` : ""}${last ? `. Last: ${fmtDate(last.at)}, ${last.first} of ${last.total}` : ""}</p></div>
+          <div class="row"><button class="btn primary" data-a="play" data-p="${esc(p.id)}">Play</button><button class="btn" data-a="editprog" data-p="${esc(p.id)}">Edit</button><button class="btn quiet" data-a="copyprog" data-p="${esc(p.id)}">Copy to…</button><button class="btn quiet danger" data-a="delprog" data-p="${esc(p.id)}">Delete</button></div></div>`; }).join("")
+      : `<div class="panel" style="text-align:center;color:var(--muted)">No card sets yet. Tap “+ New card set.”</div>`}
+      <div class="panel meta">To leave a session, press and hold the lock in the corner for 3 seconds. Data is saved on this iPad; use Settings and backup to move it to another iPad or share with your aide.</div>
+    </div>`}
+  </div>${S.modal ? modalHTML() : ""}`;
+  app.onclick = async e => {
+    const b = e.target.closest("[data-a]"); if (!b) return;
+    const a = b.dataset.a;
+    if (a.startsWith("m-")) return modalClick(a, b);
+    if (a === "who") { S.who = b.dataset.w; localStorage.setItem("cardmatch.who", S.who); render(); }
+    if (a === "settings") { S.view = "settings"; render(); }
+    if (a === "addst") { S.modal = { kind: "student", st: { id: uid(), name: "", emoji: "🦊", programs: [], history: [] }, isNew: true }; render(); }
+    if (!st) return;
+    if (a === "editst") { S.modal = { kind: "student", st: clone(st) }; render(); }
+    if (a === "reinf") { S.rfDraft = rfCfg(st); S.view = "reinf"; render(); }
+    if (a === "progress") { S.view = "progress"; render(); }
+    if (a === "newprog") { S.prog = { id: uid(), name: "", rel: "picture-picture", targets: "", array: 3, trials: 10, order: "random", rules: { differentInitial: true, uniqueInitials: true, sameLength: false }, errorMode: "retry", sayTarget: true, pics: {}, crit: 80, critSessions: 3, mastered: [] }; S.progNew = true; S.view = "program"; render(); }
+    if (a === "editprog") { S.prog = clone(st.programs.find(p => p.id === b.dataset.p)); S.progNew = false; S.view = "program"; render(); }
+    if (a === "delprog") { const p = st.programs.find(x => x.id === b.dataset.p); if (await uiConfirm(`Delete “${p.name}”? Its data stays in Progress.`, "Delete")) { st.programs = st.programs.filter(x => x.id !== p.id); (st.deletedProgs = st.deletedProgs || {})[p.id] = Date.now(); persist(); render(); } }
+    if (a === "copyprog") { S.modal = { kind: "copy", pid: b.dataset.p, sel: new Set() }; render(); }
+    if (a === "play") startPlay(st, b.dataset.p);
+  };
+  app.oninput = e => { const M = S.modal; if (!M) return; if (e.target.id === "mname") M.st.name = e.target.value; if (e.target.dataset.sel) { e.target.checked ? M.sel.add(e.target.dataset.sel) : M.sel.delete(e.target.dataset.sel); } };
+  app.onchange = app.oninput;
+}
+function modalHTML() {
+  const M = S.modal;
+  if (M.kind === "student") return `<div class="veil"><div class="panel stack"><h2>${M.isNew ? "Add a student" : "Edit student"}</h2>
+    <div><label class="f" for="mname">Name</label><input id="mname" type="text" value="${esc(M.st.name)}" placeholder="First name or initials" autocomplete="off"></div>
+    <div><label class="f">Picture</label><div class="emopick">${ANIMALS.map(x => `<button class="${M.st.emoji === x ? "on" : ""}" data-a="m-emoji" data-e="${x}">${x}</button>`).join("")}</div></div>
+    <div class="row"><button class="btn primary" data-a="m-save">Save</button><button class="btn" data-a="m-close">Cancel</button>${M.isNew ? "" : `<button class="btn quiet danger" data-a="m-del">Delete student</button>`}</div></div></div>`;
+  if (M.kind === "copy") { const others = students().filter(x => x.id !== S.who);
+    return `<div class="veil"><div class="panel stack"><h2>Copy card set to…</h2>${others.length ? others.map(x => `<label class="toggle"><input type="checkbox" data-sel="${esc(x.id)}"> ${esc(x.emoji)} ${esc(x.name)}</label>`).join("") : `<p class="meta">Add another student first.</p>`}
+      <p class="meta">Each student gets their own copy, so you can change array size or targets for one without changing the other.</p>
+      <div class="row"><button class="btn primary" data-a="m-copy" ${others.length ? "" : "disabled"}>Copy</button><button class="btn" data-a="m-close">Cancel</button></div></div></div>`; }
+  return "";
+}
+async function modalClick(a, b) {
+  const M = S.modal;
+  if (a === "m-close") { S.modal = null; render(); return; }
+  if (a === "m-emoji") { M.st.emoji = b.dataset.e; render(); return; }
+  if (a === "m-save") { const n = String(M.st.name || "").trim().slice(0, 30); if (!n) { await uiAlert("Type a name first."); return; } M.st.name = n; M.st.updatedAt = Date.now(); DB.students[M.st.id] = Object.assign(DB.students[M.st.id] || {}, M.st); if (M.isNew) S.who = M.st.id; persist(); S.modal = null; render(); return; }
+  if (a === "m-del") { if (await uiConfirm(`Delete ${M.st.name} and all of their card sets and data?`, "Delete")) { DB.deleted[M.st.id] = Date.now(); delete DB.students[M.st.id]; persist(); S.modal = null; S.who = ""; render(); } return; }
+  if (a === "m-copy") { const p = DB.students[S.who].programs.find(x => x.id === M.pid); for (const id of M.sel) { const c = clone(p); c.id = uid(); c.updatedAt = Date.now(); c.mastered = []; (DB.students[id].programs = DB.students[id].programs || []).push(c); } persist(); S.modal = null; render(); return; }
+}
+
+/* ---------- card set editor ---------- */
+function renderProgram() {
+  const p = S.prog, st = DB.students[S.who], rel = relOf(p.rel), T = parseTargets(p.targets);
+  const picTerms = [...new Set([...(rel.s === "picture" ? T.map(t => t.left) : []), ...(rel.c === "picture" ? T.map(t => t.right ?? t.left) : [])])];
+  app.innerHTML = `<div class="wrap stack">
+    <div class="top"><div><h1>${S.progNew ? "New card set" : "Edit card set"}</h1><p class="sub">For <span aria-hidden="true">${esc(st.emoji)}</span> ${esc(st.name)}</p></div>
+      <div class="row"><button class="btn primary" data-a="psave">Save</button><button class="btn" data-a="pback">Cancel</button></div></div>
+    <div class="panel stack">
+      <div><label class="f" for="pn">Name</label><input id="pn" type="text" data-k="name" value="${esc(p.name)}" placeholder="For example: Animals picture to picture"></div>
+      <div class="grid2">
+        <div><label class="f" for="pr">Matching relationship</label><select id="pr" data-k="rel">${REL.map(r => `<option value="${r.id}" ${p.rel === r.id ? "selected" : ""}>${esc(r.label)}</option>`).join("")}</select></div>
+        <div><label class="f">Array size</label><div class="seg">${[1, 2, 3, 4, 5].map(n => `<button data-a="arr" data-n="${n}" class="${p.array === n ? "on" : ""}">${n === 1 ? "1 (errorless)" : n}</button>`).join("")}</div></div>
+        <div><label class="f" for="pt">Trials per session</label><input id="pt" type="number" min="1" max="60" data-k="trials" value="${p.trials}"></div>
+        <div><label class="f" for="po">Order</label><select id="po" data-k="order"><option value="random" ${p.order !== "inorder" ? "selected" : ""}>Mixed up (no target twice in a row)</option><option value="inorder" ${p.order === "inorder" ? "selected" : ""}>In the order listed</option></select></div>
+      </div>
+      <div><label class="f" for="pg">Targets, one per line</label><textarea id="pg" data-k="targets" placeholder="dog&#10;cat&#10;cup&#10;ball&#10;Use  stimulus -> response  for non-identical pairs">${esc(p.targets)}</textarea></div>
+      <div><label class="f">Distractor rules</label>
+        <label class="toggle"><input type="checkbox" data-r="differentInitial" ${p.rules.differentInitial ? "checked" : ""}> Different first letter than the target</label>
+        <label class="toggle"><input type="checkbox" data-r="uniqueInitials" ${p.rules.uniqueInitials ? "checked" : ""}> Distractors start with different letters</label>
+        <label class="toggle"><input type="checkbox" data-r="sameLength" ${p.rules.sameLength ? "checked" : ""}> Same length as the target</label></div>
+      <div><label class="f">After a wrong answer</label><div class="seg"><button data-a="err" data-v="retry" class="${p.errorMode !== "show" ? "on" : ""}">Try again</button><button data-a="err" data-v="show" class="${p.errorMode === "show" ? "on" : ""}">Show the answer, then move on</button></div>
+        <p class="meta" style="margin-top:4px">Either way, the trial is scored as incorrect.</p></div>
+      <label class="toggle"><input type="checkbox" data-b="sayTarget" ${p.sayTarget ? "checked" : ""}> Say “Match” and the sample out loud</label>
+      <div><label class="f">Mastery</label><div class="row"><input type="number" min="50" max="100" data-k="crit" value="${p.crit}" style="max-width:6em" aria-label="Percent"><span>% correct on a target in</span><input type="number" min="1" max="10" data-k="critSessions" value="${p.critSessions}" style="max-width:5em" aria-label="Sessions"><span>sessions in a row</span></div>
+        <label class="toggle" style="margin-top:6px"><input type="checkbox" data-b="includeMastered" ${p.includeMastered ? "checked" : ""}> Keep practicing mastered targets</label></div>
+    </div>
+    ${picTerms.length ? `<div class="panel stack"><h3>Pictures</h3><p class="meta">From ${DB.settings.source === "globalsymbols" ? "Global Symbols" : "ARASAAC"}. Tap a card to choose a different picture.</p>
+      <div class="tgt">${picTerms.map(t => `<button class="tcard" data-a="pic" data-t="${esc(t)}" style="cursor:pointer"><div class="pic" data-pt="${esc(t)}">…</div><div style="font-weight:700;margin-top:4px">${esc(t)}</div></button>`).join("")}</div>
+      ${S.picFor ? `<div class="panel"><div class="row" style="justify-content:space-between"><strong>Pictures for “${esc(S.picFor)}”</strong><div class="row"><input id="psrch" type="text" value="${esc(S.picQuery || S.picFor)}" style="max-width:14em" aria-label="Search"><button class="btn" data-a="psearch">Search</button><button class="btn quiet" data-a="pnone">No picture</button></div></div><div class="picres" id="picres">Searching…</div></div>` : ""}
+    </div>` : ""}
+  </div>`;
+  // fill pictures
+  for (const t of picTerms) picFor(p, t).then(u => { const el = app.querySelector(`[data-pt="${CSS.escape(t)}"]`); if (el) el.innerHTML = u ? `<img src="${esc(u)}" alt="">` : `<span class="meta">No picture</span>`; });
+  if (S.picFor) searchSymbols(S.picQuery || S.picFor).then(r => { const el = document.getElementById("picres"); if (!el) return; el.innerHTML = r.length ? r.map(x => `<button class="${p.pics[S.picFor] === x.url ? "on" : ""}" data-a="pchoose" data-u="${esc(x.url)}"><img src="${esc(x.url)}" alt=""></button>`).join("") : `<span class="meta">Nothing found. Try another word, or check Settings.</span>`; });
+  app.oninput = e => { const t = e.target, k = t.dataset.k; if (k) { p[k] = ["trials", "crit", "critSessions"].includes(k) ? +t.value : t.value; if (k === "rel") render(); } if (t.dataset.r) p.rules[t.dataset.r] = t.checked; if (t.dataset.b) p[t.dataset.b] = t.checked; if (t.id === "psrch") S.picQuery = t.value; };
+  app.onchange = e => { app.oninput(e); if (e.target.id === "pg") setTimeout(render, 0); };
+  app.onclick = async e => {
+    const b = e.target.closest("[data-a]"); if (!b) return;
+    const a = b.dataset.a;
+    if (a === "arr") { p.array = +b.dataset.n; render(); }
+    if (a === "err") { p.errorMode = b.dataset.v; render(); }
+    if (a === "pic") { S.picFor = b.dataset.t; S.picQuery = b.dataset.t; render(); }
+    if (a === "psearch") { delete symCache[DB.settings.source + ":" + String(S.picQuery).toLowerCase()]; render(); }
+    if (a === "pchoose") { p.pics[S.picFor] = b.dataset.u; S.picFor = null; render(); }
+    if (a === "pnone") { p.pics[S.picFor] = ""; S.picFor = null; render(); }
+    if (a === "pback") { S.view = "home"; S.picFor = null; render(); }
+    if (a === "psave") {
+      if (!parseTargets(p.targets).length) { await uiAlert("Add at least one target."); return; }
+      if (!p.name.trim()) p.name = `${relOf(p.rel).label}: ${parseTargets(p.targets).slice(0, 3).map(t => t.left).join(", ")}`;
+      p.trials = Math.max(1, Math.min(60, p.trials || 10));
+      const list = st.programs = st.programs || []; const i = list.findIndex(x => x.id === p.id);
+      p.updatedAt = Date.now();
+      if (i >= 0) list[i] = p; else list.push(p);
+      persist(); S.view = "home"; S.picFor = null; render();
+    }
+  };
+}
+
+/* ---------- student session ---------- */
+const isErrorless = it => !!(it && it.errorless);
+function startPlay(st, pid) {
+  const p = st.programs.find(x => x.id === pid);
+  const trials = buildTrials(p);
+  if (!trials.length) { uiAlert("This card set has no targets."); return; }
+  S.play = { st: st.id, p, trials, idx: 0, wrong: trials.map(() => 0), res: [], phase: "start", rcfg: st.reinf && st.reinf.on ? rfCfg(st) : null };
+  S.view = "play"; render();
+}
+async function cardHTML(p, kind, value, base, cls, attrs) {
+  if (kind === "picture") { const u = await picFor(p, base); return `<div class="card ${cls}" ${attrs}>${u ? `<img src="${esc(u)}" alt="${esc(base)}">` : `<div class="txt">${esc(base)}</div>`}</div>`; }
+  if (kind === "quantity") { const n = Math.max(0, Math.min(20, parseInt(value, 10) || 0)); return `<div class="card ${cls}" ${attrs} aria-label="${n}"><div class="qty">${Array.from({ length: n }, () => "<i></i>").join("")}</div></div>`; }
+  const huge = String(value).length <= 2;
+  return `<div class="card ${cls}" ${attrs}><div class="txt ${huge ? "huge" : ""}">${esc(value)}</div></div>`;
+}
+const LOCK = `<button class="lock" id="lock" aria-label="Teacher: press and hold to unlock"><svg viewBox="0 0 52 52"><circle cx="26" cy="26" r="23" fill="none" stroke="var(--line)" stroke-width="3"/><circle id="ringp" cx="26" cy="26" r="23" fill="none" stroke="var(--accent)" stroke-width="4" stroke-dasharray="144.5" stroke-dashoffset="144.5" stroke-linecap="round" transform="rotate(-90 26 26)"/></svg><span class="ico" aria-hidden="true">🔒</span></button>`;
+async function renderPlay() {
+  const P = S.play, st = DB.students[P.st], p = P.p, rel = relOf(p.rel);
+  if (P.phase === "start") {
+    app.innerHTML = `<div class="play"><div class="pbar"><span></span>${LOCK}</div><div class="big2"><p style="font-size:1.6rem;margin:0;font-weight:700"><span aria-hidden="true">${esc(st.emoji)}</span> ${esc(st.name)}</p><h1>${esc(p.name)}</h1><button class="start" id="go">Start</button></div></div>`;
+    document.getElementById("go").onclick = () => { P.phase = "trial"; rfStart(P); render(); };
+    wireLock(); return;
+  }
+  if (P.phase === "done") {
+    app.innerHTML = `<div class="play"><div class="pbar"><span></span>${LOCK}</div><div class="big2"><div style="font-size:4rem" aria-hidden="true">⭐⭐⭐</div><h1>All done!</h1><p style="font-size:1.3rem;margin:0">Great work.</p><p class="meta">Teacher: hold the lock to see results.</p></div></div>`;
+    wireLock(); return;
+  }
+  if (P.phase === "summary") {
+    const first = P.res.filter(r => r.c).length;
+    app.innerHTML = `<div class="wrap stack"><h1>${esc(p.name)}</h1><p class="sub" style="font-size:1.15rem">${esc(st.name)}: ${first} of ${P.res.length} correct on the first try${P.res.length ? ` (${Math.round(100 * first / P.res.length)}%)` : ""}.</p>
+      <label class="toggle"><input type="checkbox" id="sprompt" ${P.prompted ? "checked" : ""}> I prompted during this session</label>
+      <div class="panel overflow"><table><thead><tr><th>Trial</th><th>Target</th><th>Result</th></tr></thead><tbody>${P.res.map((r, i) => `<tr><td>${i + 1}</td><td>${esc(r.t)}</td><td>${r.c ? `<span class="yes">Correct</span>` : `<span class="no">Incorrect</span>`}</td></tr>`).join("")}</tbody></table></div>
+      ${P.newMastered && P.newMastered.length ? `<div class="panel"><strong>🎉 Mastered:</strong> ${P.newMastered.map(esc).join(", ")}. They'll stop showing up unless you turn on “Keep practicing mastered targets.”</div>` : ""}
+      <div class="row"><button class="btn primary" id="again">Run again</button><button class="btn" id="home">Back to students</button></div></div>`;
+    document.getElementById("sprompt").onchange = e => { P.prompted = e.target.checked; const h = (st.history || []).find(x => x.at === P.savedAt); if (h) { h.prompted = P.prompted; h.editedAt = Date.now(); persist(); } };
+    document.getElementById("again").onclick = () => startPlay(st, p.id);
+    document.getElementById("home").onclick = () => { S.play = null; S.view = "home"; render(); };
+    return;
+  }
+  const T = P.trials[P.idx];
+  const errorless = p.array <= 1;
+  const sampleHTML = await cardHTML(p, rel.s, T.sample, T.sampleBase, "big", "");
+  const choicesHTML = (await Promise.all(T.choices.map((c, i) => cardHTML(p, rel.c, c.v, c.base, "", `data-c="${i}" role="button" tabindex="0" aria-label="${esc(c.v)}"`)))).join("");
+  if (S.play !== P || P.phase !== "trial") return;
+  app.innerHTML = `<div class="play"><div class="pbar"><div style="display:flex;flex-direction:column;gap:8px"><div class="dots">${P.trials.map((_, i) => `<span class="dot ${i < P.idx ? (P.res[i] && P.res[i].c ? "done" : "miss") : i === P.idx ? "on" : ""}"></span>`).join("")}</div>${tokensHTML(P)}</div>${LOCK}</div>
+    <div class="trial"><div class="sample">${sampleHTML}</div><div class="cards" id="choices">${choicesHTML}</div></div></div>`;
+  wireLock();
+  if (p.sayTarget && settings.read && !P.said) { P.said = true; speak(rel.s === "picture" ? `Match. ${T.sampleBase}` : rel.s === "quantity" ? "Match." : `Match. ${T.sample}`); }
+  let locked = false;
+  document.getElementById("choices").onclick = e => {
+    const c = e.target.closest("[data-c]"); if (!c || locked || c.classList.contains("no")) return;
+    const ch = T.choices[+c.dataset.c];
+    if (ch.v === T.correct) {
+      locked = true; c.classList.add("ok"); chime();
+      if (P.res.length === P.idx) P.res.push({ t: T.target, c: !P.wrong[P.idx], e: errorless });
+      next(P, { errorless });
+    } else {
+      P.wrong[P.idx]++;
+      if (P.res.length === P.idx) P.res.push({ t: T.target, c: false, e: errorless });
+      c.classList.remove("shake"); void c.offsetWidth; c.classList.add("shake");
+      if (p.errorMode === "show") { locked = true; c.classList.add("no"); const right = [...document.querySelectorAll("[data-c]")].find(x => T.choices[+x.dataset.c].v === T.correct); if (right) right.classList.add("hint"); setTimeout(() => next(P, { errorless, noReinf: true }), 1600); }
+      else c.classList.add("no");
+    }
+  };
+}
+function next(P, opt) {
+  const due = !opt.noReinf && rfCheck(P, { type: "trial", errorless: opt.errorless });
+  const adv = () => {
+    if (S.play !== P) return;
+    P.idx++; P.said = false;
+    if (P.idx >= P.trials.length) {
+      saveSession(P);
+      const fin = () => { if (S.play !== P) return; P.phase = "done"; chime(); render(); };
+      if (P.rf && (P.rcfg.atEnd || P.rcfg.kind === "END") && !due) { P.rf.delivered++; updateReinfCount(P); rfDeliver(P, fin); } else fin();
+      return;
+    }
+    render();
+  };
+  setTimeout(() => { if (S.play !== P) return; if (due) rfDeliver(P, adv); else adv(); }, due ? 700 : 900);
+}
+function saveSession(P) {
+  if (P.savedAt) return;
+  const st = DB.students[P.st];
+  const scored = P.res.filter(r => !r.e);
+  const entry = { at: Date.now(), prog: P.p.id, name: P.p.name, rel: P.p.rel, array: P.p.array, first: scored.filter(r => r.c).length, total: scored.length, errorless: P.res.length - scored.length, trials: P.res.map(r => ({ t: r.t, c: r.c ? 1 : 0 })) };
+  if (P.prompted) entry.prompted = true;
+  if (P.rf) { entry.reinf = P.rf.delivered; entry.schedule = rfLabel(P.rcfg); }
+  (st.history = st.history || []).push(entry);
+  if (st.history.length > 1500) st.history.splice(0, st.history.length - 1500);
+  P.savedAt = entry.at;
+  P.newMastered = checkMastery(st, P.p);
+  persist();
+}
+function updateReinfCount(P) { const st = DB.students[P.st]; const h = (st.history || []).find(x => x.at === P.savedAt); if (h && P.rf) { h.reinf = P.rf.delivered; h.editedAt = Date.now(); persist(); } }
+/* a target is mastered when it reaches the criterion in N sessions in a row (unprompted) */
+function targetStats(st, p) {
+  const out = {};
+  for (const h of (st.history || []).filter(h => h.prog === p.id && !h.prompted)) {
+    const per = {};
+    for (const r of h.trials || []) { per[r.t] = per[r.t] || [0, 0]; per[r.t][1]++; if (r.c) per[r.t][0]++; }
+    for (const [t, [c, n]] of Object.entries(per)) (out[t] = out[t] || []).push({ at: h.at, pct: Math.round(100 * c / n), c, n });
+  }
+  return out;
+}
+function checkMastery(st, p) {
+  if (p.array <= 1) return [];
+  const stats = targetStats(st, p), live = st.programs.find(x => x.id === p.id); if (!live) return [];
+  const got = [];
+  for (const [t, list] of Object.entries(stats)) {
+    const lastN = list.slice(-(p.critSessions || 3));
+    if (lastN.length >= (p.critSessions || 3) && lastN.every(x => x.pct >= (p.crit || 80)) && !(live.mastered || []).includes(t)) { (live.mastered = live.mastered || []).push(t); live.updatedAt = Date.now(); got.push(t); }
+  }
+  return got;
+}
+function wireLock() {
+  const btn = document.getElementById("lock"); if (!btn) return;
+  const ring = document.getElementById("ringp"); let t0 = 0, raf = 0;
+  const reset = () => { cancelAnimationFrame(raf); t0 = 0; ring.style.strokeDashoffset = 144.5; };
+  const tick = () => { const k = Math.min(1, (performance.now() - t0) / 3000); ring.style.strokeDashoffset = 144.5 * (1 - k); if (k >= 1) { reset(); teacherMenu(); return; } raf = requestAnimationFrame(tick); };
+  btn.addEventListener("pointerdown", e => { e.preventDefault(); t0 = performance.now(); raf = requestAnimationFrame(tick); });
+  ["pointerup", "pointerleave", "pointercancel"].forEach(ev => btn.addEventListener(ev, reset));
+}
+function teacherMenu() {
+  const P = S.play; if (!P) return;
+  if (P.phase === "done") { P.phase = "summary"; render(); return; }
+  const v = document.createElement("div"); v.className = "veil";
+  v.innerHTML = `<div class="panel stack"><h2>Teacher menu</h2>
+    ${P.phase === "trial" ? `<label class="toggle"><input type="checkbox" id="vprompt" ${P.prompted ? "checked" : ""}> I prompted during this session</label>` : ""}
+    <div class="row"><button class="btn primary" data-x="resume">Resume</button>${P.phase === "trial" && P.res.length ? `<button class="btn" data-x="end">End and save</button>` : ""}<button class="btn quiet" data-x="exit">Exit without saving</button></div></div>`;
+  v.addEventListener("click", e => {
+    const b = e.target.closest("[data-x]"); if (!b) return;
+    const pc = document.getElementById("vprompt"); if (pc) P.prompted = pc.checked;
+    v.remove();
+    if (b.dataset.x === "end") { P.trials = P.trials.slice(0, P.res.length); saveSession(P); P.phase = "summary"; render(); }
+    if (b.dataset.x === "exit") { try { speechSynthesis.cancel(); } catch {} S.play = null; S.view = "home"; render(); }
+  });
+  document.body.appendChild(v);
+}
+document.addEventListener("contextmenu", e => { if (S.view === "play") e.preventDefault(); });
+document.addEventListener("gesturestart", e => { if (S.view === "play") e.preventDefault(); });
+
+/* ---------- progress ---------- */
+function renderProgress() {
+  const st = DB.students[S.who];
+  const hist = st.history || [];
+  const pct = h => h.total ? Math.round(100 * h.first / h.total) : 0;
+  const chart = L => { L = L.slice(-12); const W = 300, H = 90, bw = W / Math.max(L.length, 1);
+    return `<svg viewBox="0 0 ${W} ${H + 18}" class="pchart" role="img" aria-label="Percent correct, last ${L.length} sessions"><line x1="0" y1="${H * 0.2}" x2="${W}" y2="${H * 0.2}" class="pgoal"/>${L.map((h, i) => { const v = pct(h), bh = Math.max(2, H * v / 100); return `<rect x="${i * bw + 3}" y="${H - bh}" width="${bw - 6}" height="${bh}" rx="3" class="${h.prompted ? "pp" : v >= 80 ? "pg" : v >= 50 ? "pm" : "pl"}"><title>${fmtDate(h.at)}: ${v}%</title></rect><text x="${i * bw + bw / 2}" y="${H + 14}" text-anchor="middle">${h.array}${h.prompted ? " P" : ""}</text>`; }).join("")}</svg>`; };
+  const progs = st.programs || [];
+  app.innerHTML = `<div class="wrap stack">
+    <div class="top"><div><h1><span aria-hidden="true">${esc(st.emoji)}</span> ${esc(st.name)}: Progress</h1><p class="sub">Percent correct on the first try. Green 80%+, yellow 50–79%, red under 50%, gray means prompted. The number under each bar is the array size. Errorless trials aren't scored.</p></div>
+      <div class="row"><button class="btn" data-a="copy">Copy data</button><button class="btn" data-a="back">Back</button></div></div>
+    ${progs.length ? progs.map(p => { const L = hist.filter(h => h.prog === p.id); const stats = targetStats(st, p);
+      return `<div class="panel stack"><div class="row" style="justify-content:space-between;align-items:flex-start"><div><h3>${esc(p.name)}</h3><p class="meta">${L.length} session${L.length === 1 ? "" : "s"}${L.length ? `. Last: ${fmtDate(L[L.length - 1].at)}, ${L[L.length - 1].first} of ${L[L.length - 1].total} (${pct(L[L.length - 1])}%)` : ""}. Mastery: ${p.crit}% in ${p.critSessions} sessions in a row.</p></div>${L.length ? chart(L) : ""}</div>
+        ${Object.keys(stats).length ? `<div class="overflow"><table><thead><tr><th>Target</th><th>Last ${p.critSessions} sessions</th><th>Status</th></tr></thead><tbody>${parseTargets(p.targets).map(t => { const s = (stats[t.left] || []).slice(-p.critSessions); const m = (p.mastered || []).includes(t.left);
+          return `<tr><td>${esc(t.left)}</td><td>${s.length ? s.map(x => `${x.pct}%`).join(", ") : "-"}</td><td>${m ? `<span class="chip ok">Mastered</span>${m ? ` <button class="btn quiet" data-a="unmaster" data-p="${esc(p.id)}" data-t="${esc(t.left)}" style="min-height:0;padding:2px 6px">Undo</button>` : ""}` : "In training"}</td></tr>`; }).join("")}</tbody></table></div>` : ""}
+        ${L.length ? `<details><summary>All sessions</summary><div class="overflow"><table><thead><tr><th>Date</th><th>Array</th><th>Correct</th><th>Errorless</th><th>Reinforcers</th><th>Prompted</th></tr></thead><tbody>${L.slice().reverse().map(h => `<tr><td>${fmtDate(h.at)}</td><td>${h.array}</td><td>${h.total ? `${h.first} of ${h.total} (${pct(h)}%)` : "-"}</td><td>${h.errorless || 0}</td><td title="${esc(h.schedule || "")}">${h.reinf ?? "-"}</td><td><input type="checkbox" data-pa="${h.at}" ${h.prompted ? "checked" : ""} style="width:22px;height:22px" aria-label="Prompted"></td></tr>`).join("")}</tbody></table></div></details>` : ""}
+      </div>`; }).join("") : `<div class="panel meta">No card sets yet.</div>`}
+    <textarea id="pdata" readonly style="display:none"></textarea></div>`;
+  app.oninput = null;
+  app.onchange = e => { const at = e.target.dataset.pa; if (at) { const h = hist.find(x => x.at === +at); if (h) { h.prompted = e.target.checked; h.editedAt = Date.now(); persist(); render(); } } };
+  app.onclick = async e => {
+    const b = e.target.closest("[data-a]"); if (!b) return;
+    if (b.dataset.a === "back") { S.view = "home"; render(); }
+    if (b.dataset.a === "unmaster") { const p = st.programs.find(x => x.id === b.dataset.p); p.mastered = (p.mastered || []).filter(x => x !== b.dataset.t); p.updatedAt = Date.now(); persist(); render(); }
+    if (b.dataset.a === "copy") {
+      const rows = [["Student", "Date", "Card set", "Relationship", "Array", "Trial", "Target", "Correct", "Prompted", "Reinforcers", "Schedule"]];
+      for (const h of hist) (h.trials || []).forEach((r, i) => rows.push([st.name, new Date(h.at).toLocaleDateString(), h.name, relOf(h.rel).label, h.array, i + 1, r.t, r.c ? "yes" : "no", h.prompted ? "yes" : "no", h.reinf ?? "", h.schedule || ""]));
+      const tsv = rows.map(r => r.join("\t")).join("\n");
+      try { await navigator.clipboard.writeText(tsv); b.textContent = "Copied. Paste into a spreadsheet"; } catch { const ta = document.getElementById("pdata"); ta.style.display = "block"; ta.value = tsv; ta.select(); b.textContent = "Select all below and copy"; }
+    }
+  };
+}
+
+/* ---------- settings + backup ---------- */
+function renderSettings() {
+  const s = DB.settings;
+  app.innerHTML = `<div class="wrap stack">
+    <div class="top"><div><h1>⚙️ Settings and backup</h1></div><button class="btn" data-a="back">Back</button></div>
+    <div class="panel stack"><h3>Pictures</h3>
+      <div class="seg"><button data-a="src" data-v="arasaac" class="${s.source !== "globalsymbols" ? "on" : ""}">ARASAAC</button><button data-a="src" data-v="globalsymbols" class="${s.source === "globalsymbols" ? "on" : ""}">Global Symbols</button></div>
+      <div><label class="f" for="gk">Global Symbols key</label><input id="gk" type="password" value="${esc(s.gsKey)}" autocomplete="off" placeholder="Paste your key here"><p class="meta" style="margin-top:4px">Saved only on this iPad, never in the GitHub files. If Global Symbols finds nothing, ARASAAC is used instead.</p></div>
+      <div class="row"><button class="btn" data-a="test">Test a search</button><span id="tres" class="meta"></span></div>
+      <p class="meta">ARASAAC pictograms by Sergio Palao, ARASAAC (arasaac.org), Government of Aragón, CC BY-NC-SA. Global Symbols images follow the license of each symbol set.</p></div>
+    <div class="panel stack"><h3>Student screen</h3>
+      <label class="toggle"><input type="checkbox" data-b="read" ${s.read ? "checked" : ""}> Read aloud</label>
+      <label class="toggle"><input type="checkbox" data-b="sound" ${s.sound ? "checked" : ""}> Chime for correct answers</label></div>
+    <div class="panel stack"><h3>☁️ Sync between devices</h3>
+      <p class="meta">Saves your students, card sets and data to a <strong>private</strong> GitHub repository, so home, school and the iPad all see the same thing. Set it up once on each device.</p>
+      <details ${syncOn() ? "" : "open"}><summary>How to set it up (about 10 minutes, once)</summary>
+        <ol style="margin:8px 0 0 0;padding-left:1.3em;line-height:1.6">
+          <li>On GitHub, make a new repository named <strong>CardMatch-data</strong>. Set it to <strong>Private</strong> and check <strong>Add a README file</strong>. This one only holds data; it is not the app.</li>
+          <li>Go to your profile picture → <strong>Settings → Developer settings → Personal access tokens → Fine-grained tokens → Generate new token</strong>.</li>
+          <li>Name it “Card Match”, set the expiration (up to a year), and under <strong>Repository access</strong> choose <strong>Only select repositories → CardMatch-data</strong>.</li>
+          <li>Under <strong>Permissions → Repository permissions</strong>, set <strong>Contents</strong> to <strong>Read and write</strong>. Leave everything else alone.</li>
+          <li>Tap <strong>Generate token</strong>, copy it, and paste it below with your username and the repo name. Do the same on each device. Keep the token somewhere safe, like a password manager, so you can paste it on the next device.</li>
+        </ol></details>
+      <div class="grid2"><div><label class="f" for="so">GitHub username</label><input id="so" type="text" data-s="owner" value="${esc(s.sync.owner)}" autocomplete="off" autocapitalize="off" spellcheck="false"></div>
+        <div><label class="f" for="sr">Data repo name</label><input id="sr" type="text" data-s="repo" value="${esc(s.sync.repo)}" placeholder="CardMatch-data" autocomplete="off" autocapitalize="off" spellcheck="false"></div></div>
+      <div><label class="f" for="st">Token</label><input id="st" type="password" data-s="token" value="${esc(s.sync.token)}" autocomplete="off" placeholder="github_pat_…"></div>
+      <div class="row"><button class="btn primary" data-a="connect">Connect and sync</button>${syncOn() ? `<button class="btn quiet danger" data-a="disconnect">Turn off sync on this device</button>` : ""}</div>
+      <p class="meta" id="syncmsg">${syncOn() ? syncLabel() : ""}</p>
+      <p class="meta">The token is saved only on this device. It is never put in the app's files, the data repo, or backups. When it expires, make a new one the same way.</p>
+    </div>
+    <div class="panel stack"><h3>Backup and sharing</h3>
+      <p class="meta">Everything is saved on this iPad. Export a backup file to keep it safe, or import it on your aide's iPad. Importing adds students and sessions without deleting anything.</p>
+      <div class="row"><button class="btn primary" data-a="export">Export backup</button><label class="btn" style="display:inline-flex;align-items:center">Import backup<input type="file" accept=".json,application/json" id="imp" hidden></label></div></div>
+  </div>`;
+  app.oninput = e => { if (e.target.dataset.s) { s.sync[e.target.dataset.s] = e.target.value.trim(); saveLocal(); } if (e.target.id === "gk") { s.gsKey = e.target.value; persist(); for (const k in symCache) delete symCache[k]; } if (e.target.dataset.b) { s[e.target.dataset.b] = e.target.checked; persist(); } };
+  app.onchange = async e => {
+    app.oninput(e);
+    if (e.target.id === "imp" && e.target.files[0]) {
+      try {
+        const d = JSON.parse(await e.target.files[0].text());
+        const n0 = Object.keys(DB.students).length, h0 = Object.values(DB.students).reduce((t, x) => t + (x.history || []).length, 0);
+        mergeInto(DB, d);
+        const n = Object.keys(DB.students).length - n0, m = Object.values(DB.students).reduce((t, x) => t + (x.history || []).length, 0) - h0;
+        persist(); await uiAlert(`Imported ${n} new student${n === 1 ? "" : "s"} and ${m} session${m === 1 ? "" : "s"}.`); render();
+      } catch { await uiAlert("That file couldn't be read."); }
+    }
+  };
+  app.onclick = async e => {
+    const b = e.target.closest("[data-a]"); if (!b) return;
+    const a = b.dataset.a;
+    if (a === "back") { S.view = "home"; render(); }
+    if (a === "connect") {
+      if (!syncOn()) { await uiAlert("Fill in your username, the repo name and the token first."); return; }
+      const msg = document.getElementById("syncmsg"); msg.textContent = "Checking…";
+      try {
+        const r = await gh(""); if (!r.ok) throw new Error(ghError(r));
+        const repo = await r.json();
+        if (!repo.private) { msg.innerHTML = `<span style="color:var(--bad)">That repository is public, so anyone could see student data. Make it private on GitHub (Settings → Danger Zone → Change visibility), then connect again.</span>`; return; }
+      } catch (err) { msg.innerHTML = `<span style="color:var(--bad)">Couldn't connect: ${esc(err.message || "check your internet connection.")}</span>`; return; }
+      await syncNow(); msg.innerHTML = syncLabel();
+    }
+    if (a === "disconnect") { if (await uiConfirm("Turn off sync on this device? Nothing is deleted here or on GitHub.", "Turn off")) { s.sync = { owner: "", repo: "", token: "" }; saveLocal(); SY.state = "off"; render(); } }
+    if (a === "src") { s.source = b.dataset.v; persist(); for (const k in symCache) delete symCache[k]; render(); }
+    if (a === "test") { const out = document.getElementById("tres"); out.textContent = "Searching for “dog”…"; const r = await searchSymbols("dog"); out.innerHTML = r.length ? `Found ${r.length} from ${esc(r[0].src)} <img src="${esc(r[0].url)}" alt="" style="height:40px;vertical-align:middle">` : "Nothing found. Check the key or your internet connection."; }
+    if (a === "export") {
+      const data = { v: 1, students: DB.students, deleted: DB.deleted || {} };
+      const blob = new Blob([JSON.stringify(data)], { type: "application/json" });
+      const url = URL.createObjectURL(blob); const link = document.createElement("a");
+      link.href = url; link.download = `card-match-backup-${new Date().toISOString().slice(0, 10)}.json`; document.body.appendChild(link); link.click(); link.remove(); setTimeout(() => URL.revokeObjectURL(url), 2000);
+    }
+  };
+}
+
+/* ---------- reinforcement settings ---------- */
+function renderReinf() {
+  const st = DB.students[S.who], c = S.rfDraft;
+  const kinds = [["FR", "Fixed ratio"], ["VR", "Variable ratio"], ["FI", "Fixed interval"], ["VI", "Variable interval"], ["END", "End of session"]];
+  app.innerHTML = `<div class="wrap stack">
+    <div class="top"><div><h1>⭐ Reinforcement for <span aria-hidden="true">${esc(st.emoji)}</span> ${esc(st.name)}</h1><p class="sub">Short full-screen visual reinforcers. Each one ends on its own when the timer runs out.</p></div>
+      <div class="row"><button class="btn primary" data-a="rsave">Save</button><button class="btn" data-a="rback">Cancel</button></div></div>
+    <div class="panel"><label class="toggle" style="font-size:1.15rem;font-weight:700"><input type="checkbox" data-r="on" ${c.on ? "checked" : ""}> Use reinforcement for ${esc(st.name)}</label></div>
+    <div class="panel stack ${c.on ? "" : "dim"}"><h3>Reinforcers</h3>
+      <div class="rfpick">${RF_TYPES.map(([k, e, t, d]) => `<div class="rfopt"><label class="toggle"><input type="checkbox" data-rt="${k}" ${c.types.includes(k) ? "checked" : ""}> <span class="rfe" aria-hidden="true">${e}</span> <span><strong>${t}</strong><span class="meta" style="display:block">${d}</span></span></label><button class="btn quiet" data-a="rprev" data-t="${k}">Try it</button></div>`).join("")}</div>
+      <div><label class="f">Which one plays</label><div class="seg">${[["choose", `${esc(st.name)} chooses`], ["random", "Random"], ["same", "Always the first checked"]].map(([k, t]) => `<button data-a="rpick" data-k="${k}" class="${c.pick === k ? "on" : ""}">${t}</button>`).join("")}</div></div>
+      <div class="row"><label class="f" style="margin:0" for="rdur">How long</label><select id="rdur" data-r="duration" style="max-width:10em">${[5, 10, 15, 20, 30, 45, 60].map(n => `<option value="${n}" ${c.duration === n ? "selected" : ""}>${n} seconds</option>`).join("")}</select></div></div>
+    <div class="panel stack ${c.on ? "" : "dim"}"><h3>Schedule</h3>
+      <div class="seg">${kinds.map(([k, t]) => `<button data-a="rkind" data-k="${k}" class="${c.kind === k ? "on" : ""}">${t}</button>`).join("")}</div>
+      ${c.kind === "FR" || c.kind === "VR" ? `<div class="row"><label class="f" style="margin:0" for="rn">${c.kind === "FR" ? "Every" : "On average every"}</label><input id="rn" type="number" min="1" max="20" data-r="n" value="${c.n}" style="max-width:6em"><span>correct answers</span></div>` : ""}
+      ${c.kind === "FI" || c.kind === "VI" ? `<div class="row"><label class="f" style="margin:0" for="rs">${c.kind === "FI" ? "After" : "After about"}</label><input id="rs" type="number" min="10" max="900" step="5" data-r="secs" value="${c.secs}" style="max-width:7em"><span>seconds, on the next correct answer</span></div>` : ""}
+      ${c.kind !== "END" ? `<label class="toggle"><input type="checkbox" data-r="firstTryOnly" ${c.firstTryOnly ? "checked" : ""}> Only count answers that are right on the first try</label>
+      <label class="toggle"><input type="checkbox" data-r="countErrorless" ${c.countErrorless ? "checked" : ""}> Count errorless trials</label>
+      <label class="toggle"><input type="checkbox" data-r="atEnd" ${c.atEnd ? "checked" : ""}> Also give one at the end of the session</label>` : ""}
+      ${c.kind === "FR" ? `<label class="toggle"><input type="checkbox" data-r="tokens" ${c.tokens ? "checked" : ""}> Show a star token board</label>` : ""}
+      <p class="meta"><strong>Now:</strong> ${esc(rfLabel(Object.assign({}, c, { on: true })))}.</p></div></div>`;
+  app.oninput = null;
+  app.onchange = e => {
+    const t = e.target, k = t.dataset.r;
+    if (["on", "firstTryOnly", "countErrorless", "atEnd", "tokens"].includes(k)) c[k] = t.checked;
+    if (k === "duration") c.duration = +t.value;
+    if (k === "n") c.n = Math.max(1, Math.min(20, +t.value || 1));
+    if (k === "secs") c.secs = Math.max(10, Math.min(900, +t.value || 60));
+    if (t.dataset.rt) { const s2 = new Set(c.types); t.checked ? s2.add(t.dataset.rt) : s2.delete(t.dataset.rt); c.types = RF_TYPES.map(x => x[0]).filter(x => s2.has(x)); }
+    setTimeout(render, 0);
+  };
+  app.onclick = async e => {
+    const b = e.target.closest("[data-a]"); if (!b) return;
+    const a = b.dataset.a;
+    if (a === "rback") { S.view = "home"; render(); }
+    if (a === "rpick") { c.pick = b.dataset.k; render(); }
+    if (a === "rkind") { c.kind = b.dataset.k; render(); }
+    if (a === "rprev") rfRun(b.dataset.t, 8, () => {});
+    if (a === "rsave") { if (c.on && !c.types.length) { await uiAlert("Check at least one reinforcer."); return; } st.reinf = clone(c); st.updatedAt = Date.now(); persist(); S.view = "home"; render(); }
+  };
+}
+
+/* ---------- reinforcement: schedules + full-screen visual reinforcers ---------- */
+const RF_TYPES = [
+  ["sparkles", "✨", "Sparkles", "Glowing fireworks and sparkles that follow their finger"],
+  ["bubbles", "🫧", "Bubble pop", "Tap bright bubbles to pop them"],
+  ["draw", "🖍️", "Draw", "Paint with a glowing rainbow brush"],
+  ["numbers", "🔢", "Numbers", "Touch anywhere to drop 1, 2, 3… in order; drag to make a trail; tap one to pop it"],
+  ["letters", "🔤", "Letters", "Touch anywhere to drop A, B, C… in order; drag to make a trail; tap one to pop it"]
+];
+const RF_DEFAULT = { on: false, types: ["sparkles", "bubbles", "draw", "numbers", "letters"], pick: "choose", kind: "FR", n: 3, secs: 60, duration: 15, firstTryOnly: false, countErrorless: true, tokens: true, atEnd: true };
+const rfCfg = st => Object.assign({}, RF_DEFAULT, (st && st.reinf) || {});
+function rfLabel(c) {
+  if (!c.on) return "Off";
+  const what = c.firstTryOnly ? "first-try correct answer" : "correct answer";
+  const m = { FR: c.n === 1 ? `Every ${what} (FR 1)` : `Every ${c.n} ${what}s (FR ${c.n})`, VR: `About every ${c.n} ${what}s (VR ${c.n})`, FI: `First ${what} after ${c.secs} seconds (FI ${c.secs}s)`, VI: `First ${what} after about ${c.secs} seconds (VI ${c.secs}s)`, END: "Only at the end of the activity" };
+  return m[c.kind] + (c.atEnd && c.kind !== "END" ? ", plus at the end" : "");
+}
+function rfStart(P) {
+  if (!P.rcfg || !P.rcfg.on) { P.rf = null; return; }
+  const c = P.rcfg;
+  P.rf = { count: 0, delivered: 0, lastAt: Date.now() };
+  P.rf.target = c.kind === "VR" ? 1 + Math.floor(Math.random() * Math.max(1, 2 * c.n - 1)) : c.n;
+  P.rf.wait = c.kind === "VI" ? c.secs * (0.5 + Math.random()) * 1000 : c.secs * 1000;
+}
+/* called when a question is finished; true means a reinforcer is due now */
+function rfCheck(P, item) {
+  const c = P.rcfg, R = P.rf; if (!c || !R || c.kind === "END") return false;
+  if (item.type === "read") return false;
+  if (!c.countErrorless && isErrorless(item)) return false;
+  if (c.firstTryOnly && P.wrong[P.idx]) return false;
+  R.count++;
+  let due = false;
+  if (c.kind === "FR") due = R.count >= c.n;
+  if (c.kind === "VR") due = R.count >= R.target;
+  if (c.kind === "FI" || c.kind === "VI") due = Date.now() - R.lastAt >= R.wait;
+  if (due) {
+    R.count = 0; R.delivered++; R.lastAt = Date.now();
+    if (c.kind === "VR") R.target = 1 + Math.floor(Math.random() * Math.max(1, 2 * c.n - 1));
+    if (c.kind === "VI") R.wait = c.secs * (0.5 + Math.random()) * 1000;
+  }
+  return due;
+}
+function tokensHTML(P) {
+  const c = P.rcfg, R = P.rf;
+  if (!c || !R || c.kind !== "FR" || !c.tokens || c.n < 2) return "";
+  return `<div class="tokens" aria-label="${R.count} of ${c.n} stars">${Array.from({ length: c.n }, (_, i) => `<span class="tok ${i < R.count ? "on" : ""}">${i < R.count ? "⭐" : ""}</span>`).join("")}</div>`;
+}
+/* show the reinforcer (with a choice board if set), then call done() */
+function rfDeliver(P, done) {
+  const c = P.rcfg; const types = c.types.filter(t => RF_TYPES.some(x => x[0] === t));
+  if (!types.length) { done(); return; }
+  if (c.pick === "choose" && types.length > 1) {
+    const v = document.createElement("div"); v.className = "rfwrap rfchoose";
+    v.innerHTML = `<div class="rfboard"><h1>Great work! ⭐</h1><p style="font-size:1.4rem;margin:0">Pick one!</p><div class="rfgrid">${types.map(t => { const d = RF_TYPES.find(x => x[0] === t); return `<button data-t="${t}"><span aria-hidden="true">${d[1]}</span>${d[2]}</button>`; }).join("")}</div></div>`;
+    document.body.appendChild(v);
+    if (settings.read) speak("Great work! Pick one.");
+    v.addEventListener("click", e => { const b = e.target.closest("[data-t]"); if (!b) return; v.remove(); rfRun(b.dataset.t, c.duration, done); });
+    return;
+  }
+  const t = c.pick === "random" ? types[Math.floor(Math.random() * types.length)] : types[0];
+  rfRun(t, c.duration, done);
+}
+function rfRun(type, secs, done) {
+  const v = document.createElement("div"); v.className = "rfwrap";
+  v.innerHTML = `<canvas></canvas><svg class="rftimer" viewBox="0 0 52 52" aria-hidden="true"><circle cx="26" cy="26" r="22" fill="none" stroke="rgba(255,255,255,.25)" stroke-width="5"/><circle id="rft" cx="26" cy="26" r="22" fill="none" stroke="#fff" stroke-width="5" stroke-dasharray="138.2" stroke-dashoffset="0" stroke-linecap="round" transform="rotate(-90 26 26)"/></svg>`;
+  document.body.appendChild(v);
+  const cv = v.querySelector("canvas"), ctx = cv.getContext("2d"), ring = v.querySelector("#rft");
+  const dpr = Math.min(2, window.devicePixelRatio || 1);
+  const size = () => { cv.width = innerWidth * dpr; cv.height = innerHeight * dpr; ctx.setTransform(dpr, 0, 0, dpr, 0, 0); };
+  size(); addEventListener("resize", size);
+  const W = () => innerWidth, H = () => innerHeight;
+  const hue = () => Math.floor(Math.random() * 360);
+  let parts = [], things = [], strokes = 0, last = null, t0 = performance.now(), raf = 0, ended = false;
+  const burst = (x, y, n, h) => { for (let i = 0; i < n; i++) { const a = Math.random() * Math.PI * 2, sp = 1 + Math.random() * 5; parts.push({ x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, life: 1, h: h ?? hue(), r: 2 + Math.random() * 3 }); } };
+  const pop = () => { if (!settings.sound) return; try { actx = actx || new (window.AudioContext || window.webkitAudioContext)(); const o = actx.createOscillator(), g = actx.createGain(), t = actx.currentTime; o.type = "triangle"; o.frequency.setValueAtTime(500 + Math.random() * 500, t); o.frequency.exponentialRampToValueAtTime(1400, t + 0.08); g.gain.setValueAtTime(0.15, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.15); o.connect(g); g.connect(actx.destination); o.start(t); o.stop(t + 0.16); } catch {} };
+  const SYM = type === "numbers" ? Array.from({ length: 20 }, (_, i) => String(i + 1)) : "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("");
+  const addThing = () => {
+    if (type === "bubbles") things.push({ x: 40 + Math.random() * (W() - 80), y: H() + 60, r: 30 + Math.random() * 40, vy: -(0.6 + Math.random() * 1.2), h: hue(), wob: Math.random() * 6 });
+    if (type === "numbers" || type === "letters") things.push({ x: 60 + Math.random() * (W() - 120), y: -60, vx: (Math.random() - 0.5) * 3, vy: 1 + Math.random() * 2, s: SYM[Math.floor(Math.random() * SYM.length)], h: hue(), size: 60 + Math.random() * 50, rot: 0, vr: (Math.random() - 0.5) * 0.05 });
+  };
+  /* numbers and letters: touching empty space drops the next one in order (1, 2, 3… or A, B, C…); dragging leaves a trail */
+  let seq = 0, lastSpeak = 0, lastDrop = null;
+  const drop = (x, y, say, big) => {
+    const sym = SYM[seq % SYM.length]; seq++;
+    things.push({ x, y, vx: (Math.random() - 0.5) * 4, vy: -3 - Math.random() * 3, s: sym, h: (seq * 23) % 360, size: big ? 90 + Math.random() * 30 : 55 + Math.random() * 25, rot: 0, vr: (Math.random() - 0.5) * 0.08, fresh: 1 });
+    if (things.length > 55) things.splice(0, things.length - 55);
+    burst(x, y, big ? 24 : 8, (seq * 23) % 360);
+    const now = performance.now();
+    if (say && now - lastSpeak > 350) { speak(sym); lastSpeak = now; }
+    if (big) pop();
+  };
+  if (type === "draw") { ctx.fillStyle = "#0b1020"; ctx.fillRect(0, 0, W(), H()); }
+  const at = e => [e.clientX, e.clientY];
+  cv.addEventListener("pointerdown", e => {
+    e.preventDefault(); const [x, y] = at(e); last = [x, y];
+    if (type === "sparkles") burst(x, y, 40);
+    if (type === "bubbles") { for (let i = things.length - 1; i >= 0; i--) { const b = things[i]; if (Math.hypot(b.x - x, b.y - y) < b.r + 12) { burst(b.x, b.y, 30, b.h); things.splice(i, 1); pop(); break; } } }
+    if (type === "numbers" || type === "letters") {
+      let hit = false;
+      for (let i = things.length - 1; i >= 0; i--) { const b = things[i]; if (Math.hypot(b.x - x, b.y - y) < b.size * 0.6) { burst(b.x, b.y, 36, b.h); speak(b.s); things.splice(i, 1); pop(); hit = true; break; } }
+      if (!hit) { drop(x, y, true, true); for (let k = 0; k < 2; k++) setTimeout(() => { if (!ended) { things.push({ x: x + (Math.random() - 0.5) * 120, y: -40, vx: (Math.random() - 0.5) * 2, vy: 2 + Math.random() * 2, s: SYM[Math.floor(Math.random() * SYM.length)], h: hue(), size: 45 + Math.random() * 30, rot: 0, vr: (Math.random() - 0.5) * 0.06 }); } }, 120 + k * 160); }
+      lastDrop = [x, y];
+    }
+  });
+  cv.addEventListener("pointermove", e => {
+    if (!last) return; const [x, y] = at(e);
+    if (type === "sparkles") burst(x, y, 4);
+    if ((type === "numbers" || type === "letters") && lastDrop && Math.hypot(x - lastDrop[0], y - lastDrop[1]) > 70) { drop(x, y, true, false); lastDrop = [x, y]; }
+    if (type === "draw") { strokes++; ctx.save(); ctx.lineCap = "round"; ctx.lineJoin = "round"; ctx.lineWidth = 14; const h = (strokes * 4) % 360; ctx.strokeStyle = `hsl(${h} 100% 60%)`; ctx.shadowColor = `hsl(${h} 100% 60%)`; ctx.shadowBlur = 18; ctx.beginPath(); ctx.moveTo(last[0], last[1]); ctx.lineTo(x, y); ctx.stroke(); ctx.restore(); if (strokes % 3 === 0) burst(x, y, 2, h); }
+    last = [x, y];
+  });
+  const up = () => { last = null; lastDrop = null; };
+  cv.addEventListener("pointerup", up); cv.addEventListener("pointercancel", up);
+  let nextAuto = 0;
+  const frame = now => {
+    const el = (now - t0) / 1000, left = Math.max(0, 1 - el / secs);
+    ring.setAttribute("stroke-dashoffset", String(138.2 * (1 - left)));
+    if (type !== "draw") { ctx.fillStyle = "rgba(11,16,32,0.28)"; ctx.fillRect(0, 0, W(), H()); }
+    if (now > nextAuto) {
+      if (type === "sparkles") { burst(80 + Math.random() * (W() - 160), 80 + Math.random() * (H() * 0.6), 50); nextAuto = now + 650; }
+      else if (type === "bubbles") { if (things.length < 14) addThing(); nextAuto = now + 450; }
+      else if (type === "numbers" || type === "letters") { if (things.length < 10) addThing(); nextAuto = now + 700; }
+      else nextAuto = now + 1e9;
+    }
+    for (const b of things) {
+      if (type === "bubbles") {
+        b.y += b.vy; b.wob += 0.03; const x = b.x + Math.sin(b.wob) * 10;
+        const g = ctx.createRadialGradient(x - b.r * 0.3, b.y - b.r * 0.3, 2, x, b.y, b.r);
+        g.addColorStop(0, "rgba(255,255,255,.9)"); g.addColorStop(0.35, `hsla(${b.h},100%,65%,.55)`); g.addColorStop(1, `hsla(${b.h},100%,55%,.15)`);
+        ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, b.y, b.r, 0, Math.PI * 2); ctx.fill();
+        ctx.strokeStyle = `hsla(${b.h},100%,80%,.9)`; ctx.lineWidth = 2; ctx.stroke(); b.x = b.x;
+      } else {
+        b.x += b.vx; b.y += b.vy; b.vy += 0.12; b.rot = Math.max(-0.35, Math.min(0.35, b.rot + b.vr)); if (Math.abs(b.rot) >= 0.35) b.vr = -b.vr;
+        const floor = H() - b.size * 0.4;
+        if (b.y > floor) { b.y = floor; b.vy *= -0.6; b.vx *= 0.92; b.vr *= 0.8; b.rot *= 0.85; if (Math.abs(b.vy) < 0.8) b.vy = 0; }
+        if (b.x < 30) { b.x = 30; b.vx = Math.abs(b.vx); } if (b.x > W() - 30) { b.x = W() - 30; b.vx = -Math.abs(b.vx); }
+        if (b.fresh) b.fresh = Math.max(0, b.fresh - 0.02);
+        const sc = 1 + (b.fresh || 0) * 0.35;
+        ctx.save(); ctx.translate(b.x, b.y); ctx.rotate(b.rot); ctx.scale(sc, sc); ctx.font = `700 ${b.size}px Andika, "Atkinson Hyperlegible", system-ui, sans-serif`; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+        ctx.shadowColor = `hsl(${b.h} 100% 60%)`; ctx.shadowBlur = 25 + (b.fresh || 0) * 30; ctx.fillStyle = `hsl(${b.h} 100% 65%)`; ctx.fillText(b.s, 0, 0); ctx.restore();
+      }
+    }
+    things = things.filter(b => b.y > -120);
+    for (const q of parts) { q.x += q.vx; q.y += q.vy; q.vy += 0.04; q.life -= 0.016; ctx.fillStyle = `hsla(${q.h},100%,${60 + q.life * 20}%,${Math.max(0, q.life)})`; ctx.beginPath(); ctx.arc(q.x, q.y, q.r * (0.5 + q.life), 0, Math.PI * 2); ctx.fill(); }
+    parts = parts.filter(q => q.life > 0);
+    if (el >= secs) { end(); return; }
+    raf = requestAnimationFrame(frame);
+  };
+  const end = () => { if (ended) return; ended = true; cancelAnimationFrame(raf); removeEventListener("resize", size); v.classList.add("rfout"); setTimeout(() => { v.remove(); done(); }, 350); };
+  ctx.fillStyle = "#0b1020"; ctx.fillRect(0, 0, W(), H());
+  raf = requestAnimationFrame(frame);
+}
+
+
+
+render();
+if (syncOn()) syncNow();
+if ("serviceWorker" in navigator && location.protocol === "https:") navigator.serviceWorker.register("sw.js").catch(() => {});
+})();
+</script>
+</body>
+</html>
