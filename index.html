@@ -139,6 +139,10 @@ body.playing{user-select:none;-webkit-user-select:none;-webkit-touch-callout:non
 .card.ok{border-color:var(--good);background:var(--goodbg)}
 .card.hint{border-color:var(--sun);box-shadow:0 0 0 6px color-mix(in srgb,var(--sun) 45%,transparent)}
 .card.no{opacity:.35}
+.card.big.imit{width:clamp(220px,40vw,380px);aspect-ratio:1}
+.score{display:flex;justify-content:space-between;gap:16px;padding-top:12px}
+.score .btn{font-size:1.25rem;min-height:60px;padding:10px 26px}
+#syes{border-color:var(--good);color:var(--good)}#sno{border-color:var(--bad);color:var(--bad)}
 .qty{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;width:80%}
 .qty i{aspect-ratio:1;border-radius:50%;background:var(--accent)}
 .shake{animation:shake .4s ease}
@@ -323,6 +327,13 @@ const REL = [
   { id: "non-identical", label: "Non-identical matching (stimulus -> response)", s: "text", c: "text" }
 ];
 const relOf = id => REL.find(r => r.id === id) || REL[0];
+/* card set types: matching, listener response (tap the named picture), imitation (teacher-scored) */
+const TYPES = [["match", "Matching"], ["listener", "Listener response"], ["imitation", "Imitation"]];
+const typeOf = p => p && (p.type === "listener" || p.type === "imitation") ? p.type : "match";
+const relFor = p => typeOf(p) === "match" ? relOf(p.rel) : { s: "picture", c: "picture" };
+const progLabel = p => typeOf(p) === "listener" ? "Listener response" : typeOf(p) === "imitation" ? "Imitation" : relOf(p.rel).label;
+const CUE = { listener: "Touch", imitation: "Do this" };
+const cueOf = p => String(p.cue || "").trim() || CUE[typeOf(p)] || "";
 function parseTargets(text) {
   return String(text || "").split(/\r?\n/).map(l => l.trim()).filter(Boolean).map(l => {
     for (const sep of ["->", "=>", "|"]) if (l.includes(sep)) { const [a, b] = l.split(sep).map(x => x.trim()); if (a && b) return { left: a, right: b }; }
@@ -342,7 +353,7 @@ function pickDistractors(pool, target, needed, rules) {
 }
 /* build one session of trials for a program */
 function buildTrials(p) {
-  const rel = relOf(p.rel), T = parseTargets(p.targets);
+  const ty = typeOf(p), rel = relFor(p), T = parseTargets(p.targets);
   const live = T.filter(t => !(p.mastered || []).includes(t.left) || p.includeMastered);
   const use = live.length ? live : T;
   if (!use.length) return [];
@@ -356,7 +367,7 @@ function buildTrials(p) {
     const base = t.right ?? t.left;
     const sample = map(t.left, rel.sm), correct = map(base, rel.cm);
     const pool = T.filter(x => x.left !== t.left).map(x => map(x.right ?? x.left, rel.cm));
-    const dis = pickDistractors(pool, correct, Math.max(0, (p.array || 3) - 1), p.rules || {});
+    const dis = ty === "imitation" ? [] : pickDistractors(pool, correct, Math.max(0, (p.array || 3) - 1), p.rules || {});
     const choices = shuffle([correct, ...dis]);
     const baseOf = v => { const hit = T.find(x => map(x.right ?? x.left, rel.cm) === v); return hit ? (hit.right ?? hit.left) : v; };
     return { target: t.left, sample, sampleBase: t.left, correct, choices: choices.map(v => ({ v, base: baseOf(v) })) };
@@ -445,7 +456,7 @@ function renderHome() {
     </div>
     <div class="stack" style="margin-top:14px">
       ${(st.programs || []).length ? st.programs.map(p => { const T = parseTargets(p.targets); const last = (st.history || []).filter(h => h.prog === p.id).slice(-1)[0];
-        return `<div class="panel prog"><div><h3>${esc(p.name)}</h3><p class="meta">${esc(relOf(p.rel).label)}, array of ${p.array}, ${p.trials} trials, ${T.length} target${T.length === 1 ? "" : "s"}${(p.mastered || []).length ? `, ${p.mastered.length} mastered` : ""}${last ? `. Last: ${fmtDate(last.at)}, ${last.first} of ${last.total}` : ""}</p></div>
+        return `<div class="panel prog"><div><h3>${esc(p.name)}</h3><p class="meta">${esc(progLabel(p))}, ${typeOf(p) === "imitation" ? "" : `array of ${p.array}, `}${p.trials} trials, ${T.length} target${T.length === 1 ? "" : "s"}${(p.mastered || []).length ? `, ${p.mastered.length} mastered` : ""}${last ? `. Last: ${fmtDate(last.at)}, ${last.first} of ${last.total}` : ""}</p></div>
           <div class="row"><button class="btn primary" data-a="play" data-p="${esc(p.id)}">Play</button><button class="btn" data-a="editprog" data-p="${esc(p.id)}">Edit</button><button class="btn quiet" data-a="copyprog" data-p="${esc(p.id)}">Copy to…</button><button class="btn quiet danger" data-a="delprog" data-p="${esc(p.id)}">Delete</button></div></div>`; }).join("")
       : `<div class="panel" style="text-align:center;color:var(--muted)">No card sets yet. Tap “+ New card set.”</div>`}
       <div class="panel meta">To leave a session, press and hold the lock in the corner for 3 seconds. Data is saved on this iPad; use Settings and backup to move it to another iPad or share with your aide.</div>
@@ -519,29 +530,31 @@ async function modalClick(a, b) {
 
 /* ---------- card set editor ---------- */
 function renderProgram() {
-  const p = S.prog, st = DB.students[S.who], rel = relOf(p.rel), T = parseTargets(p.targets);
+  const p = S.prog, st = DB.students[S.who], ty = typeOf(p), rel = relFor(p), T = parseTargets(p.targets);
   const picTerms = [...new Set([...(rel.s === "picture" ? T.map(t => t.left) : []), ...(rel.c === "picture" ? T.map(t => t.right ?? t.left) : [])])];
   app.innerHTML = `<div class="wrap stack">
     <div class="top"><div><h1>${S.progNew ? "New card set" : "Edit card set"}</h1><p class="sub">For <span aria-hidden="true">${esc(st.emoji)}</span> ${esc(st.name)}</p></div>
       <div class="row"><button class="btn primary" data-a="psave">Save</button><button class="btn" data-a="pback">Cancel</button></div></div>
     <div class="panel stack">
+      <div><label class="f">Type</label><div class="seg">${TYPES.map(([k, t]) => `<button data-a="ptype" data-v="${k}" class="${ty === k ? "on" : ""}">${t}</button>`).join("")}</div>
+        <p class="meta" style="margin-top:4px">${ty === "listener" ? "The iPad says the instruction and the target (“Touch dog”), with no sample card. The student taps the right picture." : ty === "imitation" ? "An action card shows. You model the action, then tap Correct or Incorrect." : "A sample card shows at the top. The student taps the matching card."}</p></div>
       <div><label class="f" for="pn">Name</label><input id="pn" type="text" data-k="name" value="${esc(p.name)}" placeholder="For example: Animals picture to picture"></div>
       <div class="grid2">
-        <div><label class="f" for="pr">Matching relationship</label><select id="pr" data-k="rel">${REL.map(r => `<option value="${r.id}" ${p.rel === r.id ? "selected" : ""}>${esc(r.label)}</option>`).join("")}</select></div>
-        <div><label class="f">Array size</label><div class="seg">${[1, 2, 3, 4, 5].map(n => `<button data-a="arr" data-n="${n}" class="${p.array === n ? "on" : ""}">${n === 1 ? "1 (errorless)" : n}</button>`).join("")}</div></div>
+        ${ty === "match" ? `<div><label class="f" for="pr">Matching relationship</label><select id="pr" data-k="rel">${REL.map(r => `<option value="${r.id}" ${p.rel === r.id ? "selected" : ""}>${esc(r.label)}</option>`).join("")}</select></div>` : `<div><label class="f" for="pcue">What the iPad says</label><input id="pcue" type="text" data-k="cue" value="${esc(p.cue || "")}" placeholder="${esc(CUE[ty])}"><p class="meta" style="margin-top:4px">${ty === "listener" ? "Followed by the target, for example “Touch dog” or “Find dog.”" : "The action's name isn't said, so the student imitates your model instead of following a spoken direction."}</p></div>`}
+        ${ty !== "imitation" ? `<div><label class="f">Array size</label><div class="seg">${[1, 2, 3, 4, 5].map(n => `<button data-a="arr" data-n="${n}" class="${p.array === n ? "on" : ""}">${n === 1 ? "1 (errorless)" : n}</button>`).join("")}</div></div>` : ""}
         <div><label class="f" for="pt">Trials per session</label><input id="pt" type="number" min="1" max="60" data-k="trials" value="${p.trials}"></div>
         <div><label class="f" for="po">Order</label><select id="po" data-k="order"><option value="random" ${p.order !== "inorder" ? "selected" : ""}>Mixed up (no target twice in a row)</option><option value="inorder" ${p.order === "inorder" ? "selected" : ""}>In the order listed</option></select></div>
       </div>
-      <div><label class="f" for="pg">Targets, one per line</label><textarea id="pg" data-k="targets" placeholder="dog&#10;cat&#10;cup&#10;ball&#10;Use  stimulus -> response  for non-identical pairs">${esc(p.targets)}</textarea></div>
-      <div><label class="f">Distractor rules</label>
+      <div><label class="f" for="pg">Targets, one per line</label><textarea id="pg" data-k="targets" placeholder="${ty === "imitation" ? "clap&#10;wave&#10;touch head&#10;stomp feet" : ty === "listener" ? "dog&#10;cat&#10;cup&#10;ball" : "dog&#10;cat&#10;cup&#10;ball&#10;Use  stimulus -> response  for non-identical pairs"}">${esc(p.targets)}</textarea></div>
+      ${ty !== "imitation" ? `<div><label class="f">Distractor rules</label>
         <label class="toggle"><input type="checkbox" data-r="differentInitial" ${p.rules.differentInitial ? "checked" : ""}> Different first letter than the target</label>
         <label class="toggle"><input type="checkbox" data-r="uniqueInitials" ${p.rules.uniqueInitials ? "checked" : ""}> Distractors start with different letters</label>
         <label class="toggle"><input type="checkbox" data-r="sameLength" ${p.rules.sameLength ? "checked" : ""}> Same length as the target</label></div>
       <div><label class="f">After a wrong answer</label><div class="seg"><button data-a="err" data-v="retry" class="${p.errorMode !== "show" ? "on" : ""}">Try again</button><button data-a="err" data-v="show" class="${p.errorMode === "show" ? "on" : ""}">Show the answer, then move on</button></div>
         <p class="meta" style="margin-top:4px">Either way, the trial is scored as incorrect.</p></div>
       <div><label class="f">Space between choices</label><div class="seg">${[["auto", "Automatic"], ["close", "Close"], ["medium", "Medium"], ["wide", "Wide"], ["edges", "Far apart (screen edges)"]].map(([k, t]) => `<button data-a="sp" data-v="${k}" class="${(p.spacing || "auto") === k ? "on" : ""}">${t}</button>`).join("")}</div>
-        <p class="meta" style="margin-top:4px">Automatic is wide for 2 choices and medium for 3 or more. Far apart puts 2 choices at the left and right edges of the screen.</p></div>
-      <label class="toggle"><input type="checkbox" data-b="sayTarget" ${p.sayTarget ? "checked" : ""}> Say “Match” and the sample out loud</label>
+        <p class="meta" style="margin-top:4px">Automatic is wide for 2 choices and medium for 3 or more. Far apart puts 2 choices at the left and right edges of the screen.</p></div>` : ""}
+      <label class="toggle"><input type="checkbox" data-b="sayTarget" ${p.sayTarget ? "checked" : ""}> ${ty === "listener" ? "Say the instruction out loud (if this is off, you say it; the screen shows you what to say)" : ty === "imitation" ? "Say the instruction out loud" : "Say “Match” and the sample out loud"}</label>
       <div><label class="f">Mastery</label><div class="row"><input type="number" min="50" max="100" data-k="crit" value="${p.crit}" style="max-width:6em" aria-label="Percent"><span>% correct on a target in</span><input type="number" min="1" max="10" data-k="critSessions" value="${p.critSessions}" style="max-width:5em" aria-label="Sessions"><span>sessions in a row</span></div>
         <label class="toggle" style="margin-top:6px"><input type="checkbox" data-b="includeMastered" ${p.includeMastered ? "checked" : ""}> Keep practicing mastered targets</label></div>
     </div>
@@ -558,6 +571,7 @@ function renderProgram() {
   app.onclick = async e => {
     const b = e.target.closest("[data-a]"); if (!b) return;
     const a = b.dataset.a;
+    if (a === "ptype") { const v = b.dataset.v; if (v !== ty) { if (Object.values(CUE).includes(String(p.cue || "").trim())) p.cue = ""; p.type = v; S.picFor = null; } render(); }
     if (a === "arr") { p.array = +b.dataset.n; render(); }
     if (a === "err") { p.errorMode = b.dataset.v; render(); }
     if (a === "sp") { p.spacing = b.dataset.v; render(); }
@@ -568,7 +582,7 @@ function renderProgram() {
     if (a === "pback") { S.view = "home"; S.picFor = null; render(); }
     if (a === "psave") {
       if (!parseTargets(p.targets).length) { await uiAlert("Add at least one target."); return; }
-      if (!p.name.trim()) p.name = `${relOf(p.rel).label}: ${parseTargets(p.targets).slice(0, 3).map(t => t.left).join(", ")}`;
+      if (!p.name.trim()) p.name = `${progLabel(p)}: ${parseTargets(p.targets).slice(0, 3).map(t => t.left).join(", ")}`;
       p.trials = Math.max(1, Math.min(60, p.trials || 10));
       const list = st.programs = st.programs || []; const i = list.findIndex(x => x.id === p.id);
       p.updatedAt = Date.now();
@@ -595,7 +609,7 @@ async function cardHTML(p, kind, value, base, cls, attrs) {
 }
 const LOCK = `<button class="lock" id="lock" aria-label="Teacher: press and hold to unlock"><svg viewBox="0 0 52 52"><circle cx="26" cy="26" r="23" fill="none" stroke="var(--line)" stroke-width="3"/><circle id="ringp" cx="26" cy="26" r="23" fill="none" stroke="var(--accent)" stroke-width="4" stroke-dasharray="144.5" stroke-dashoffset="144.5" stroke-linecap="round" transform="rotate(-90 26 26)"/></svg><span class="ico" aria-hidden="true">🔒</span></button>`;
 async function renderPlay() {
-  const P = S.play, st = DB.students[P.st], p = P.p, rel = relOf(p.rel);
+  const P = S.play, st = DB.students[P.st], p = P.p, rel = relFor(p), ty = typeOf(p);
   if (P.phase === "start") {
     app.innerHTML = `<div class="play"><div class="pbar"><span></span>${LOCK}</div><div class="big2"><p style="font-size:1.6rem;margin:0;font-weight:700"><span aria-hidden="true">${esc(st.emoji)}</span> ${esc(st.name)}</p><h1>${esc(p.name)}</h1><button class="start" id="go">Start</button></div></div>`;
     document.getElementById("go").onclick = () => { P.phase = "trial"; rfStart(P); render(); };
@@ -618,14 +632,18 @@ async function renderPlay() {
     return;
   }
   const T = P.trials[P.idx];
-  const errorless = p.array <= 1;
-  const sampleHTML = await cardHTML(p, rel.s, T.sample, T.sampleBase, "big", "");
+  const errorless = ty !== "imitation" && p.array <= 1;
+  if (ty === "imitation") return renderImitation(P, st, p, T);
+  const say = ty === "listener" ? `${cueOf(p)} ${T.target}` : "";
+  const sampleHTML = ty === "listener" ? "" : await cardHTML(p, rel.s, T.sample, T.sampleBase, "big", "");
   const choicesHTML = (await Promise.all(T.choices.map((c, i) => cardHTML(p, rel.c, c.v, c.base, "", `data-c="${i}" role="button" tabindex="0" aria-label="${esc(c.v)}"`)))).join("");
   if (S.play !== P || P.phase !== "trial") return;
-  app.innerHTML = `<div class="play"><div class="pbar"><div style="display:flex;flex-direction:column;gap:8px">${S.grp ? `<strong style="font-size:1.3rem">${esc(st.emoji)} ${esc(st.name)}</strong>` : ""}<div class="dots">${P.trials.map((_, i) => `<span class="dot ${i < P.idx ? (P.res[i] && P.res[i].c ? "done" : "miss") : i === P.idx ? "on" : ""}"></span>`).join("")}</div>${tokensHTML(P)}</div>${LOCK}</div>
-    <div class="trial"><div class="sample">${sampleHTML}</div><div class="cards sp-${p.spacing && p.spacing !== "auto" ? p.spacing : (T.choices.length <= 2 ? "wide" : "medium")} n${T.choices.length}" id="choices">${choicesHTML}</div></div></div>`;
+  app.innerHTML = `<div class="play"><div class="pbar"><div style="display:flex;flex-direction:column;gap:8px">${S.grp ? `<strong style="font-size:1.3rem">${esc(st.emoji)} ${esc(st.name)}</strong>` : ""}<div class="dots">${P.trials.map((_, i) => `<span class="dot ${i < P.idx ? (P.res[i] && P.res[i].c ? "done" : "miss") : i === P.idx ? "on" : ""}"></span>`).join("")}</div>${tokensHTML(P)}</div>${ty === "listener" ? `<div class="row" style="gap:10px">${!(p.sayTarget && settings.read) ? `<span class="meta" style="font-size:1.05rem">Say: “${esc(say)}”</span>` : ""}<button class="btn quiet" id="resay" aria-label="Say it again" style="font-size:1.5rem">🔊</button>${LOCK}</div>` : LOCK}</div>
+    <div class="trial">${ty === "listener" ? "" : `<div class="sample">${sampleHTML}</div>`}<div class="cards sp-${p.spacing && p.spacing !== "auto" ? p.spacing : (T.choices.length <= 2 ? "wide" : "medium")} n${T.choices.length}" id="choices">${choicesHTML}</div></div></div>`;
   wireLock();
-  if (p.sayTarget && settings.read && !P.said) { P.said = true; speak(rel.s === "picture" ? `Match. ${T.sampleBase}` : rel.s === "quantity" ? "Match." : `Match. ${T.sample}`); }
+  const rs = document.getElementById("resay"); if (rs) rs.onclick = () => speak(say);
+  if (ty === "listener") { if (p.sayTarget && settings.read && !P.said) { P.said = true; speak(say); } }
+  else if (p.sayTarget && settings.read && !P.said) { P.said = true; speak(rel.s === "picture" ? `Match. ${T.sampleBase}` : rel.s === "quantity" ? "Match." : `Match. ${T.sample}`); }
   let locked = false;
   document.getElementById("choices").onclick = e => {
     const c = e.target.closest("[data-c]"); if (!c || locked || c.classList.contains("no")) return;
@@ -642,6 +660,26 @@ async function renderPlay() {
       else c.classList.add("no");
     }
   };
+}
+/* imitation: the action card shows, the teacher models it and scores the response */
+async function renderImitation(P, st, p, T) {
+  const cardH = await cardHTML(p, "picture", T.sample, T.sampleBase, "big imit", "");
+  if (S.play !== P || P.phase !== "trial") return;
+  const cue = cueOf(p);
+  app.innerHTML = `<div class="play"><div class="pbar"><div style="display:flex;flex-direction:column;gap:8px">${S.grp ? `<strong style="font-size:1.3rem">${esc(st.emoji)} ${esc(st.name)}</strong>` : ""}<div class="dots">${P.trials.map((_, i) => `<span class="dot ${i < P.idx ? (P.res[i] && P.res[i].c ? "done" : "miss") : i === P.idx ? "on" : ""}"></span>`).join("")}</div>${tokensHTML(P)}</div><div class="row" style="gap:10px"><span class="meta" style="font-size:1.05rem">Model: ${esc(T.target)}</span>${LOCK}</div></div>
+    <div class="trial"><div class="sample">${cardH}${cue ? `<div class="txt" style="font-size:clamp(1.6rem,4vw,2.4rem);font-weight:700">${esc(cue)}</div>` : ""}</div></div>
+    <div class="score"><button class="btn" id="sno">✗ Incorrect</button><button class="btn" id="syes">✓ Correct</button></div></div>`;
+  wireLock();
+  if (p.sayTarget && settings.read && !P.said && cue) { P.said = true; speak(cue); }
+  let done = false;
+  const score = ok => {
+    if (done) return; done = true;
+    if (P.res.length === P.idx) P.res.push({ t: T.target, c: ok, e: false });
+    const card = app.querySelector(".card.big"); if (card) card.classList.add(ok ? "ok" : "no");
+    if (ok) { chime(); next(P, { errorless: false }); } else next(P, { errorless: false, noReinf: true });
+  };
+  document.getElementById("syes").onclick = () => score(true);
+  document.getElementById("sno").onclick = () => score(false);
 }
 function turnLabel(g) { return g.turn === "each" ? "after every trial" : g.turn === "trials" ? `after ${g.turnTrials} trials` : `after a reinforcer (or ${g.turnTrials} trials)`; }
 function makeP(st, pid) {
@@ -715,7 +753,7 @@ function saveSession(P) {
   if (P.savedAt) return;
   const st = DB.students[P.st];
   const scored = P.res.filter(r => !r.e);
-  const entry = { at: Date.now(), prog: P.p.id, name: P.p.name, rel: P.p.rel, array: P.p.array, first: scored.filter(r => r.c).length, total: scored.length, errorless: P.res.length - scored.length, trials: P.res.map(r => r.e ? { t: r.t, c: r.c ? 1 : 0, e: 1 } : { t: r.t, c: r.c ? 1 : 0 }) };
+  const entry = { at: Date.now(), prog: P.p.id, name: P.p.name, type: typeOf(P.p), rel: P.p.rel, array: typeOf(P.p) === "imitation" ? 0 : P.p.array, first: scored.filter(r => r.c).length, total: scored.length, errorless: P.res.length - scored.length, trials: P.res.map(r => r.e ? { t: r.t, c: r.c ? 1 : 0, e: 1 } : { t: r.t, c: r.c ? 1 : 0 }) };
   if (P.prompted) entry.prompted = true;
   if (P.group) entry.group = P.group;
   if (P.rf) { entry.reinf = P.rf.delivered; entry.schedule = rfLabel(P.rcfg); }
@@ -737,7 +775,7 @@ function targetStats(st, p) {
   return out;
 }
 function checkMastery(st, p) {
-  if (p.array <= 1) return [];
+  if (typeOf(p) !== "imitation" && p.array <= 1) return [];
   const stats = targetStats(st, p), live = st.programs.find(x => x.id === p.id); if (!live) return [];
   const got = [];
   for (const [t, list] of Object.entries(stats)) {
@@ -818,7 +856,7 @@ function renderProgress() {
     phases.forEach((ph, k) => {
       if (k > 0) { const px = (x(ph.s - 1) + x(ph.s)) / 2; g += `<line x1="${px}" y1="${padT - 22}" x2="${px}" y2="${y(0)}" class="phase"/>`; }
       const left = k > 0 ? (x(ph.s - 1) + x(ph.s)) / 2 : padL, right = k < phases.length - 1 ? (x(ph.e) + x(ph.e + 1)) / 2 : W - padR + 10;
-      g += `<text x="${(left + right) / 2}" y="${padT - 14}" text-anchor="middle" class="phase-t">${ph.ar <= 1 ? "1 card" : `Array of ${ph.ar}`}</text>`;
+      g += `<text x="${(left + right) / 2}" y="${padT - 14}" text-anchor="middle" class="phase-t">${ph.ar === 0 ? "" : ph.ar <= 1 ? "1 card" : `Array of ${ph.ar}`}</text>`;
       const seg = pts.slice(ph.s, ph.e + 1);
       if (seg.length > 1) g += `<polyline class="path" points="${seg.map((q, j) => `${x(ph.s + j)},${y(q.v)}`).join(" ")}"/>`;
     });
@@ -843,7 +881,7 @@ function renderProgress() {
         <div class="gkey"><span><i></i>Session</span><span><i class="pr"></i>Prompted (not counted toward mastery)</span><span><i class="cr"></i>Mastery criterion</span><span><i class="ph"></i>Array size changed</span></div>` : L.length ? `<p class="meta">No scored trials for ${esc(tg || "this card set")} yet.</p>` : ""}
         ${Object.keys(stats).length ? `<div class="overflow"><table><thead><tr><th>Target</th><th>Last ${p.critSessions} sessions</th><th>Status</th></tr></thead><tbody>${parseTargets(p.targets).map(t => { const s = (stats[t.left] || []).slice(-p.critSessions); const m = (p.mastered || []).includes(t.left);
           return `<tr><td>${esc(t.left)}</td><td>${s.length ? s.map(x => `${x.pct}%`).join(", ") : "-"}</td><td>${m ? `<span class="chip ok">Mastered</span>${m ? ` <button class="btn quiet" data-a="unmaster" data-p="${esc(p.id)}" data-t="${esc(t.left)}" style="min-height:0;padding:2px 6px">Undo</button>` : ""}` : "In training"}</td></tr>`; }).join("")}</tbody></table></div>` : ""}
-        ${L.length ? `<details><summary>All sessions</summary><div class="overflow"><table><thead><tr><th>Date</th><th>Array</th><th>Correct</th><th>Errorless</th><th>Reinforcers</th><th>Prompted</th></tr></thead><tbody>${L.slice().reverse().map(h => `<tr><td>${fmtDate(h.at)}</td><td>${h.array}</td><td>${h.total ? `${h.first} of ${h.total} (${pct(h)}%)` : "-"}</td><td>${h.errorless || 0}</td><td title="${esc(h.schedule || "")}">${h.reinf ?? "-"}</td><td><input type="checkbox" data-pa="${h.at}" ${h.prompted ? "checked" : ""} style="width:22px;height:22px" aria-label="Prompted"></td></tr>`).join("")}</tbody></table></div></details>` : ""}
+        ${L.length ? `<details><summary>All sessions</summary><div class="overflow"><table><thead><tr><th>Date</th><th>Array</th><th>Correct</th><th>Errorless</th><th>Reinforcers</th><th>Prompted</th></tr></thead><tbody>${L.slice().reverse().map(h => `<tr><td>${fmtDate(h.at)}</td><td>${h.type === "imitation" ? "-" : h.array}</td><td>${h.total ? `${h.first} of ${h.total} (${pct(h)}%)` : "-"}</td><td>${h.errorless || 0}</td><td title="${esc(h.schedule || "")}">${h.reinf ?? "-"}</td><td><input type="checkbox" data-pa="${h.at}" ${h.prompted ? "checked" : ""} style="width:22px;height:22px" aria-label="Prompted"></td></tr>`).join("")}</tbody></table></div></details>` : ""}
       </div>`; }).join("") : `<div class="panel meta">No card sets yet.</div>`}
     <textarea id="pdata" readonly style="display:none"></textarea></div>`;
   app.oninput = null;
@@ -856,7 +894,7 @@ function renderProgress() {
     if (b.dataset.a === "unmaster") { const p = st.programs.find(x => x.id === b.dataset.p); p.mastered = (p.mastered || []).filter(x => x !== b.dataset.t); p.updatedAt = Date.now(); persist(); render(); }
     if (b.dataset.a === "copy") {
       const rows = [["Student", "Date", "Card set", "Relationship", "Array", "Trial", "Target", "Correct", "Prompted", "Reinforcers", "Schedule"]];
-      for (const h of hist) (h.trials || []).forEach((r, i) => rows.push([st.name, new Date(h.at).toLocaleDateString(), h.name, relOf(h.rel).label, h.array, i + 1, r.t, r.c ? "yes" : "no", h.prompted ? "yes" : "no", h.reinf ?? "", h.schedule || ""]));
+      for (const h of hist) (h.trials || []).forEach((r, i) => rows.push([st.name, new Date(h.at).toLocaleDateString(), h.name, progLabel(h), h.type === "imitation" ? "" : h.array, i + 1, r.t, r.c ? "yes" : "no", h.prompted ? "yes" : "no", h.reinf ?? "", h.schedule || ""]));
       const tsv = rows.map(r => r.join("\t")).join("\n");
       try { await navigator.clipboard.writeText(tsv); b.textContent = "Copied. Paste into a spreadsheet"; } catch { const ta = document.getElementById("pdata"); ta.style.display = "block"; ta.value = tsv; ta.select(); b.textContent = "Select all below and copy"; }
     }
