@@ -483,6 +483,7 @@ function renderHome() {
     if (a === "play") startPlay(st, b.dataset.p);
   };
   app.oninput = e => { const M = S.modal; if (!M) return; if (e.target.id === "mname") M.st.name = e.target.value;
+    if (e.target.id === "mpc") M.st.pc = e.target.value.trim().slice(0, 20);
     if (M.kind === "group") {
       const t = e.target;
       if (t.id === "gname") M.g.name = t.value;
@@ -497,6 +498,7 @@ function modalHTML() {
   const M = S.modal;
   if (M.kind === "student") return `<div class="veil"><div class="panel stack"><h2>${M.isNew ? "Add a student" : "Edit student"}</h2>
     <div><label class="f" for="mname">Name</label><input id="mname" type="text" value="${esc(M.st.name)}" placeholder="First name or initials" autocomplete="off"></div>
+      <div><label class="f" for="mpc">Initials in The Parachute</label><input id="mpc" type="text" value="${esc(M.st.pc || "")}" placeholder="Same as the Students tab, e.g. JAXN" autocomplete="off"><p class="sub" style="margin:4px 0 0;font-size:.9rem">Sessions are sent to The Parachute under these initials. Leave blank to use the name.</p></div>
     <div><label class="f">Picture</label><div class="emopick">${ANIMALS.map(x => `<button class="${M.st.emoji === x ? "on" : ""}" data-a="m-emoji" data-e="${x}">${x}</button>`).join("")}</div></div>
     <div class="row"><button class="btn primary" data-a="m-save">Save</button><button class="btn" data-a="m-close">Cancel</button>${M.isNew ? "" : `<button class="btn quiet danger" data-a="m-del">Delete student</button>`}</div></div></div>`;
   if (M.kind === "copy") { const others = students().filter(x => x.id !== S.who);
@@ -654,7 +656,7 @@ async function renderPlay() {
       next(P, { errorless });
     } else {
       P.wrong[P.idx]++;
-      if (P.res.length === P.idx) P.res.push({ t: T.target, c: false, e: errorless });
+      if (P.res.length === P.idx) P.res.push({ t: T.target, c: false, e: errorless, pk: String(ch.base || ch.v) });
       c.classList.remove("shake"); void c.offsetWidth; c.classList.add("shake");
       if (p.errorMode === "show") { locked = true; c.classList.add("no"); const right = [...document.querySelectorAll("[data-c]")].find(x => T.choices[+x.dataset.c].v === T.correct); if (right) right.classList.add("hint"); setTimeout(() => next(P, { errorless, noReinf: true }), 1600); }
       else c.classList.add("no");
@@ -753,7 +755,7 @@ function saveSession(P) {
   if (P.savedAt) return;
   const st = DB.students[P.st];
   const scored = P.res.filter(r => !r.e);
-  const entry = { at: Date.now(), prog: P.p.id, name: P.p.name, type: typeOf(P.p), rel: P.p.rel, array: typeOf(P.p) === "imitation" ? 0 : P.p.array, first: scored.filter(r => r.c).length, total: scored.length, errorless: P.res.length - scored.length, trials: P.res.map(r => r.e ? { t: r.t, c: r.c ? 1 : 0, e: 1 } : { t: r.t, c: r.c ? 1 : 0 }) };
+  const entry = { at: Date.now(), prog: P.p.id, name: P.p.name, type: typeOf(P.p), rel: P.p.rel, array: typeOf(P.p) === "imitation" ? 0 : P.p.array, first: scored.filter(r => r.c).length, total: scored.length, errorless: P.res.length - scored.length, trials: P.res.map(r => Object.assign(r.e ? { t: r.t, c: r.c ? 1 : 0, e: 1 } : { t: r.t, c: r.c ? 1 : 0 }, r.pk ? { pk: r.pk } : {})) };
   if (P.prompted) entry.prompted = true;
   if (P.group) entry.group = P.group;
   if (P.rf) { entry.reinf = P.rf.delivered; entry.schedule = rfLabel(P.rcfg); }
@@ -762,6 +764,7 @@ function saveSession(P) {
   P.savedAt = entry.at;
   P.newMastered = checkMastery(st, P.p);
   persist();
+  pcQueue(st, P, entry);
 }
 function updateReinfCount(P) { const st = DB.students[P.st]; const h = (st.history || []).find(x => x.at === P.savedAt); if (h && P.rf) { h.reinf = P.rf.delivered; h.editedAt = Date.now(); persist(); } }
 /* a target is mastered when it reaches the criterion in N sessions in a row (unprompted) */
@@ -1363,6 +1366,41 @@ render();
 if (syncOn()) syncNow();
 if ("serviceWorker" in navigator && location.protocol === "https:") navigator.serviceWorker.register("sw.js").catch(() => {});
 })();
+
+/* ---------- The Parachute: send each finished session to its Google Sheet ----------
+   Waits on this device if the internet drops, and sends when it's back. */
+const PC_ENDPOINT = "https://script.google.com/macros/s/AKfycbz3MkE3Ev39aRMZK9lkbcgRvSjt1HKmcz75D-PAJa-YOL0qQvZnkIs-2yK8IxQj3bs/exec";
+const PC_KEY = "skhqdkxwzat0zmt2qg"; // must match KEY in The Parachute's Code.gs
+const PC_BOX = "cardmatch:parachute-outbox";
+const pcRead = () => { try { return JSON.parse(localStorage.getItem(PC_BOX) || "{}"); } catch { return {}; } };
+const pcWrite = b => { try { localStorage.setItem(PC_BOX, JSON.stringify(b)); } catch {} };
+let pcBusy = false, pcTimer = null;
+function pcQueue(st, P, entry) {
+  const d = new Date(entry.at), pad = n => String(n).padStart(2, "0");
+  let by = "Mr. Tucker"; try { by = localStorage.getItem("parachute:by") || localStorage.getItem("cardmaker:parachute-by") || by; } catch {}
+  const box = pcRead();
+  const sid = "ma-" + String(st.id).replace(/[^\w-]/g, "").slice(0, 40) + "-" + entry.at;
+  box[sid] = { action: "appSession", source: "Card Match", sid, student: (st.pc || st.name || "").trim(),
+    date: `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`, at: entry.at, program: entry.name,
+    arraySize: entry.array || "", prompted: !!entry.prompted, by, trials: entry.trials };
+  pcWrite(box);
+  pcSend();
+}
+async function pcSend() {
+  if (pcBusy) return; pcBusy = true; clearTimeout(pcTimer);
+  try {
+    for (const [sid, body] of Object.entries(pcRead())) {
+      const res = await fetch(PC_ENDPOINT, { method: "POST", body: JSON.stringify({ ...body, key: PC_KEY }) });
+      const data = JSON.parse(await res.text());
+      if (!data.ok && data.error !== "bad-data") throw new Error(data.error || "error");
+      const box = pcRead(); delete box[sid]; pcWrite(box);
+    }
+  } catch (e) { pcTimer = setTimeout(pcSend, 30000); }
+  finally { pcBusy = false; }
+}
+window.addEventListener("online", pcSend);
+document.addEventListener("visibilitychange", () => { if (!document.hidden) pcSend(); });
+if (Object.keys(pcRead()).length) setTimeout(pcSend, 1500);
 </script>
 </body>
 </html>
