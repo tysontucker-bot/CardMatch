@@ -150,6 +150,15 @@ body.playing{user-select:none;-webkit-user-select:none;-webkit-touch-callout:non
 .qty{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;width:80%}
 .qty i{aspect-ratio:1;border-radius:50%;background:var(--accent)}
 .shake{animation:shake .4s ease}
+/* messy array: cards sit at random spots, slightly turned */
+.cards.sp-messy{display:block;position:relative;flex:1;min-height:clamp(260px,46vh,560px);padding:0}
+.cards.sp-messy .card{position:absolute;margin:0}
+.cards.sp-messy.placing .card{visibility:hidden}
+/* touch the sample first: choices wait until the sample is touched */
+.cards.waiting{visibility:hidden}
+.card.big.tapme{cursor:pointer;animation:tapme 1.6s ease-in-out infinite}
+@keyframes tapme{0%,100%{box-shadow:0 0 0 0 color-mix(in srgb,var(--accent) 50%,transparent)}50%{box-shadow:0 0 0 14px color-mix(in srgb,var(--accent) 0%,transparent)}}
+@media (prefers-reduced-motion:reduce){.card.big.tapme{animation:none;box-shadow:0 0 0 6px color-mix(in srgb,var(--accent) 45%,transparent)}}
 @keyframes shake{20%{transform:translateX(-10px)}40%{transform:translateX(10px)}60%{transform:translateX(-6px)}80%{transform:translateX(6px)}}
 .big2{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:20px;text-align:center}
 .big2 h1{font-size:clamp(2.2rem,6vw,3.6rem)}
@@ -560,9 +569,10 @@ function renderProgram() {
         <label class="toggle"><input type="checkbox" data-r="sameLength" ${p.rules.sameLength ? "checked" : ""}> Same length as the target</label></div>
       <div><label class="f">After a wrong answer</label><div class="seg"><button data-a="err" data-v="retry" class="${p.errorMode !== "show" ? "on" : ""}">Try again</button><button data-a="err" data-v="show" class="${p.errorMode === "show" ? "on" : ""}">Show the answer, then move on</button></div>
         <p class="meta" style="margin-top:4px">Either way, the trial is scored as incorrect.</p></div>
-      <div><label class="f">Space between choices</label><div class="seg">${[["auto", "Automatic"], ["close", "Close"], ["medium", "Medium"], ["wide", "Wide"], ["edges", "Far apart (screen edges)"]].map(([k, t]) => `<button data-a="sp" data-v="${k}" class="${(p.spacing || "auto") === k ? "on" : ""}">${t}</button>`).join("")}</div>
-        <p class="meta" style="margin-top:4px">Automatic is wide for 2 choices and medium for 3 or more. Far apart puts 2 choices at the left and right edges of the screen.</p></div>` : ""}
+      <div><label class="f">Space between choices</label><div class="seg">${[["auto", "Automatic"], ["close", "Close"], ["medium", "Medium"], ["wide", "Wide"], ["edges", "Far apart (screen edges)"], ["messy", "Messy (random spots)"]].map(([k, t]) => `<button data-a="sp" data-v="${k}" class="${(p.spacing || "auto") === k ? "on" : ""}">${t}</button>`).join("")}</div>
+        <p class="meta" style="margin-top:4px">Automatic is wide for 2 choices and medium for 3 or more. Far apart puts 2 choices at the left and right edges of the screen. Messy scatters the choices to new random spots, slightly turned, on every trial, so there's no middle or usual spot to default to.</p></div>` : ""}
       <label class="toggle"><input type="checkbox" data-b="sayTarget" ${p.sayTarget ? "checked" : ""}> ${ty === "listener" ? "Say the instruction out loud (if this is off, you say it; the screen shows you what to say)" : ty === "imitation" ? "Say the instruction out loud" : ty === "tact" ? "Say the question out loud" : "Say “Match” and the sample out loud"}</label>
+      ${ty === "match" ? `<label class="toggle"><input type="checkbox" data-b="observe" ${p.observe ? "checked" : ""}> Touch the sample first (the choices appear after the student touches the sample card)</label>` : ""}
       <div><label class="f">Mastery</label><div class="row"><input type="number" min="50" max="100" data-k="crit" value="${p.crit}" style="max-width:6em" aria-label="Percent"><span>% correct on a target in</span><input type="number" min="1" max="10" data-k="critSessions" value="${p.critSessions}" style="max-width:5em" aria-label="Sessions"><span>sessions in a row</span></div>
         <label class="toggle" style="margin-top:6px"><input type="checkbox" data-b="includeMastered" ${p.includeMastered ? "checked" : ""}> Keep practicing mastered targets</label></div>
     </div>
@@ -643,15 +653,33 @@ async function renderPlay() {
   const errorless = !youScore(p) && p.array <= 1;
   if (youScore(p)) return renderYouScore(P, st, p, T);
   const say = ty === "listener" ? `${cueOf(p)} ${T.target}` : "";
+  P.seen = P.seen || {};
+  const observeNow = ty === "match" && p.observe && !P.seen[P.idx];
   const sampleHTML = ty === "listener" ? "" : await cardHTML(p, rel.s, T.sample, T.sampleBase, "big", "");
   const choicesHTML = (await Promise.all(T.choices.map((c, i) => cardHTML(p, rel.c, c.v, c.base, "", `data-c="${i}" role="button" tabindex="0" aria-label="${esc(c.v)}"`)))).join("");
   if (S.play !== P || P.phase !== "trial") return;
   app.innerHTML = `<div class="play"><div class="pbar"><div style="display:flex;flex-direction:column;gap:8px">${S.grp ? `<strong style="font-size:1.3rem">${esc(st.emoji)} ${esc(st.name)}</strong>` : ""}<div class="dots">${P.trials.map((_, i) => `<span class="dot ${i < P.idx ? (P.res[i] && P.res[i].c ? "done" : "miss") : i === P.idx ? "on" : ""}"></span>`).join("")}</div>${tokensHTML(P)}</div>${ty === "listener" ? `<div class="row" style="gap:10px">${!(p.sayTarget && settings.read) ? `<span class="meta" style="font-size:1.05rem">Say: “${esc(say)}”</span>` : ""}<button class="btn quiet" id="resay" aria-label="Say it again" style="font-size:1.5rem">🔊</button>${LOCK}</div>` : LOCK}</div>
-    <div class="trial">${ty === "listener" ? "" : `<div class="sample">${sampleHTML}</div>`}<div class="cards sp-${p.spacing && p.spacing !== "auto" ? p.spacing : (T.choices.length <= 2 ? "wide" : "medium")} n${T.choices.length}" id="choices">${choicesHTML}</div></div></div>`;
+    <div class="trial">${ty === "listener" ? "" : `<div class="sample">${sampleHTML}</div>`}<div class="cards sp-${p.spacing && p.spacing !== "auto" ? p.spacing : (T.choices.length <= 2 ? "wide" : "medium")} n${T.choices.length}${observeNow ? " waiting" : ""}${p.spacing === "messy" ? " placing" : ""}" id="choices">${choicesHTML}</div></div></div>`;
   wireLock();
   const rs = document.getElementById("resay"); if (rs) rs.onclick = () => speak(say);
   if (ty === "listener") { if (p.sayTarget && settings.read && !P.said) { P.said = true; speak(say); } }
-  else if (p.sayTarget && settings.read && !P.said) { P.said = true; speak(rel.s === "picture" ? `Match. ${T.sampleBase}` : rel.s === "quantity" ? "Match." : `Match. ${T.sample}`); }
+  const sayMatch = () => speak(rel.s === "picture" ? `Match. ${T.sampleBase}` : rel.s === "quantity" ? "Match." : `Match. ${T.sample}`);
+  if (ty !== "listener" && observeNow) {
+    // observing response: the student touches the sample, then the choices appear
+    const sc = app.querySelector(".sample .card.big");
+    if (sc) {
+      sc.classList.add("tapme"); sc.setAttribute("role", "button"); sc.setAttribute("tabindex", "0"); sc.setAttribute("aria-label", "Touch the card to see the choices");
+      const reveal = () => {
+        if (P.seen[P.idx]) return; P.seen[P.idx] = true;
+        sc.classList.remove("tapme"); sc.removeAttribute("role"); sc.removeAttribute("tabindex");
+        document.getElementById("choices").classList.remove("waiting");
+        if (p.sayTarget && settings.read) { P.said = true; sayMatch(); }
+      };
+      sc.onclick = reveal; sc.onkeydown = e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); reveal(); } };
+    }
+  }
+  else if (ty !== "listener" && p.sayTarget && settings.read && !P.said) { P.said = true; sayMatch(); }
+  if (p.spacing === "messy") placeMessy(document.getElementById("choices"));
   let locked = false;
   document.getElementById("choices").onclick = e => {
     const c = e.target.closest("[data-c]"); if (!c || locked || c.classList.contains("no")) return;
@@ -668,6 +696,49 @@ async function renderPlay() {
       else c.classList.add("no");
     }
   };
+}
+/* messy array: random, non-overlapping spots with a slight random turn; new spots every trial */
+function placeMessy(box) {
+  if (!box) return;
+  const cards = [...box.querySelectorAll(".card")];
+  const place = () => {
+    const W = box.clientWidth, H = box.clientHeight; if (!W || !H) return;
+    // size each card with its turn included, so turned corners never touch
+    const items = cards.map(c => {
+      c.style.rotate = "0deg";
+      const deg = Math.random() * 16 - 8, r = Math.abs(deg) * Math.PI / 180, w = c.offsetWidth, h = c.offsetHeight;
+      return { c, deg, w, h, bw: w * Math.cos(r) + h * Math.sin(r), bh: w * Math.sin(r) + h * Math.cos(r) };
+    });
+    const tryLayout = () => {
+      const placed = [];
+      for (const it of items) {
+        let ok = null;
+        for (let t = 0; t < 300 && !ok; t++) {
+          const x = Math.random() * Math.max(0, W - it.bw), y = Math.random() * Math.max(0, H - it.bh);
+          if (placed.every(q => x >= q.x + q.bw + 24 || q.x >= x + it.bw + 24 || y >= q.y + q.bh + 24 || q.y >= y + it.bh + 24)) ok = { x, y };
+        }
+        if (!ok) return null;
+        placed.push({ ...it, ...ok });
+      }
+      return placed;
+    };
+    let layout = null;
+    for (let k = 0; k < 30 && !layout; k++) layout = tryLayout();
+    if (!layout) { // not enough room to scatter: spread them out with uneven heights instead
+      const step = W / items.length;
+      layout = items.map((it, i) => ({ ...it, x: Math.max(0, Math.min(W - it.bw, i * step + (step - it.bw) / 2)), y: Math.random() * Math.max(0, H - it.bh) }));
+    }
+    for (const q of layout) {
+      // left/top position the unturned card so its turned outline sits in the chosen box
+      q.c.style.left = (q.x + (q.bw - q.w) / 2) + "px"; q.c.style.top = (q.y + (q.bh - q.h) / 2) + "px";
+      q.c.style.rotate = q.deg.toFixed(1) + "deg";
+    }
+    box.classList.remove("placing");
+  };
+  requestAnimationFrame(place);
+  // re-place if the iPad turns
+  const onResize = () => { if (!document.body.contains(box)) { removeEventListener("resize", onResize); return; } place(); };
+  addEventListener("resize", onResize);
 }
 /* you score it: imitation shows text directions for you (no pictures); tact shows one picture */
 async function renderYouScore(P, st, p, T) {
