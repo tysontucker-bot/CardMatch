@@ -389,8 +389,24 @@ function buildTrials(p) {
   });
 }
 
-/* ---------- symbols: ARASAAC or Global Symbols ---------- */
+/* ---------- pictures: Card Match photos, ARASAAC or Global Symbols ---------- */
 const symCache = {};
+// Card Match photos live in this repo's photos folder; photos/index.json lists each target's pictures
+let photoIndex = null;
+async function loadPhotoIndex() {
+  if (photoIndex) return photoIndex;
+  try { const r = await fetch("photos/index.json", { cache: "no-cache" }); photoIndex = r.ok ? await r.json() : {}; }
+  catch { photoIndex = {}; }
+  return photoIndex;
+}
+async function searchPhotos(term) {
+  const idx = await loadPhotoIndex();
+  const t = String(term || "").trim().toLowerCase(); if (!t) return [];
+  const exact = [t, t.replace(/s$/, ""), t + "s", t.replace(/es$/, "")];
+  let keys = [...new Set(exact)].filter(k => idx[k]);
+  if (!keys.length) keys = Object.keys(idx).filter(k => k.includes(t) || (t.length > 3 && t.includes(k))).slice(0, 6);
+  return keys.flatMap(k => idx[k].map(f => ({ url: "photos/" + encodeURIComponent(f), src: "Photos" }))).slice(0, 12);
+}
 async function searchSymbols(term) {
   term = String(term || "").trim(); if (!term) return [];
   const src = DB.settings.source;
@@ -418,7 +434,9 @@ async function searchSymbols(term) {
     return [];
   };
   try {
-    if (src === "globalsymbols") { out = await tryGS(); if (!out.length) out = await tryAras().catch(() => []); }
+    // Photos first; ARASAAC symbols fill in when a target has no photo yet, so no card is ever blank
+    if (src === "photos") { out = [...await searchPhotos(term), ...await tryAras().catch(() => [])].slice(0, 16); }
+    else if (src === "globalsymbols") { out = await tryGS(); if (!out.length) out = await tryAras().catch(() => []); }
     else { out = await tryAras().catch(() => []); if (!out.length && DB.settings.gsKey) out = await tryGS(); }
   } catch { out = []; }
   symCache[key] = out;
@@ -577,7 +595,7 @@ function renderProgram() {
       <div><label class="f">Mastery</label><div class="row"><input type="number" min="50" max="100" data-k="crit" value="${p.crit}" style="max-width:6em" aria-label="Percent"><span>% correct on a target in</span><input type="number" min="1" max="10" data-k="critSessions" value="${p.critSessions}" style="max-width:5em" aria-label="Sessions"><span>sessions in a row</span></div>
         <label class="toggle" style="margin-top:6px"><input type="checkbox" data-b="includeMastered" ${p.includeMastered ? "checked" : ""}> Keep practicing mastered targets</label></div>
     </div>
-    ${picTerms.length ? `<div class="panel stack"><h3>Pictures</h3><p class="meta">From ${DB.settings.source === "globalsymbols" ? "Global Symbols" : "ARASAAC"}. Tap a card to choose a different picture.</p>
+    ${picTerms.length ? `<div class="panel stack"><h3>Pictures</h3><p class="meta">From ${DB.settings.source === "photos" ? "Card Match photos (ARASAAC when there’s no photo)" : DB.settings.source === "globalsymbols" ? "Global Symbols" : "ARASAAC"}. Tap a card to choose a different picture.</p><div class="row"><button class="btn quiet" data-a="prefresh">Refresh all pictures from ${DB.settings.source === "photos" ? "Photos" : DB.settings.source === "globalsymbols" ? "Global Symbols" : "ARASAAC"}</button></div>
       <div class="tgt">${picTerms.map(t => `<button class="tcard" data-a="pic" data-t="${esc(t)}" style="cursor:pointer"><div class="pic" data-pt="${esc(t)}">…</div><div style="font-weight:700;margin-top:4px">${esc(t)}</div></button>`).join("")}</div>
       ${S.picFor ? `<div class="panel"><div class="row" style="justify-content:space-between"><strong>Pictures for “${esc(S.picFor)}”</strong><div class="row"><input id="psrch" type="text" value="${esc(S.picQuery || S.picFor)}" style="max-width:14em" aria-label="Search"><button class="btn" data-a="psearch">Search</button><button class="btn quiet" data-a="pnone">No picture</button></div></div><div class="picres" id="picres">Searching…</div></div>` : ""}
     </div>` : ""}
@@ -598,6 +616,7 @@ function renderProgram() {
     if (a === "psearch") { delete symCache[DB.settings.source + ":" + String(S.picQuery).toLowerCase()]; render(); }
     if (a === "pchoose") { p.pics[S.picFor] = b.dataset.u; S.picFor = null; render(); }
     if (a === "pnone") { p.pics[S.picFor] = ""; S.picFor = null; render(); }
+    if (a === "prefresh") { p.pics = {}; persist(); S.picFor = null; render(); }
     if (a === "pback") { S.view = "home"; S.picFor = null; render(); }
     if (a === "psave") {
       if (!parseTargets(p.targets).length) { await uiAlert("Add at least one target."); return; }
@@ -994,10 +1013,11 @@ function renderSettings() {
   app.innerHTML = `<div class="wrap stack">
     <div class="top"><div><h1>⚙️ Settings and backup</h1></div><button class="btn" data-a="back">Back</button></div>
     <div class="panel stack"><h3>Pictures</h3>
-      <div class="seg"><button data-a="src" data-v="arasaac" class="${s.source !== "globalsymbols" ? "on" : ""}">ARASAAC</button><button data-a="src" data-v="globalsymbols" class="${s.source === "globalsymbols" ? "on" : ""}">Global Symbols</button></div>
+      <div class="seg"><button data-a="src" data-v="photos" class="${s.source === "photos" ? "on" : ""}">Photos</button><button data-a="src" data-v="arasaac" class="${s.source !== "globalsymbols" && s.source !== "photos" ? "on" : ""}">ARASAAC</button><button data-a="src" data-v="globalsymbols" class="${s.source === "globalsymbols" ? "on" : ""}">Global Symbols</button></div>
+      <p class="meta">New card sets use this choice. Card sets you already made keep their pictures; open one and tap “Refresh all pictures” to switch it.</p>
       <div><label class="f" for="gk">Global Symbols key</label><input id="gk" type="password" value="${esc(s.gsKey)}" autocomplete="off" placeholder="Paste your key here"><p class="meta" style="margin-top:4px">Saved only on this iPad, never in the GitHub files. If Global Symbols finds nothing, ARASAAC is used instead.</p></div>
       <div class="row"><button class="btn" data-a="test">Test a search</button><span id="tres" class="meta"></span></div>
-      <p class="meta">ARASAAC pictograms by Sergio Palao, ARASAAC (arasaac.org), Government of Aragón, CC BY-NC-SA. Global Symbols images follow the license of each symbol set.</p></div>
+      <p class="meta">Card Match photos were made for this app. ARASAAC pictograms by Sergio Palao, ARASAAC (arasaac.org), Government of Aragón, CC BY-NC-SA. Global Symbols images follow the license of each symbol set.</p></div>
     <div class="panel stack"><h3>Student screen</h3>
       <label class="toggle"><input type="checkbox" data-b="read" ${s.read ? "checked" : ""}> Read aloud</label>
       <label class="toggle"><input type="checkbox" data-b="sound" ${s.sound ? "checked" : ""}> Chime for correct answers</label></div>
