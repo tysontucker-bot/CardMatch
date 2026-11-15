@@ -559,6 +559,7 @@ function renderProgram() {
       <div class="grid2">
         ${ty === "match" ? `<div><label class="f" for="pr">Matching relationship</label><select id="pr" data-k="rel">${REL.map(r => `<option value="${r.id}" ${p.rel === r.id ? "selected" : ""}>${esc(r.label)}</option>`).join("")}</select></div>` : `<div><label class="f" for="pcue">What the iPad says</label><input id="pcue" type="text" data-k="cue" value="${esc(p.cue || "")}" placeholder="${esc(CUE[ty])}"><p class="meta" style="margin-top:4px">${ty === "listener" ? "Followed by the target, for example “Touch dog” or “Find dog.”" : ty === "tact" ? "The question you ask, for example “What's this?” or “What is it?”" : "The action's name isn't said, so the student imitates your model instead of following a spoken direction."}</p></div>`}
         ${!youScore(p) ? `<div><label class="f">Array size</label><div class="seg">${[1, 2, 3, 4, 5].map(n => `<button data-a="arr" data-n="${n}" class="${p.array === n ? "on" : ""}">${n === 1 ? "1 (errorless)" : n}</button>`).join("")}</div></div>` : ""}
+        <div><label class="f" for="psubj">Subject on The Vis</label><select id="psubj" data-k="subject">${[["", "None"], ["ENG", "English"], ["MATH", "Math"], ["SS", "Social Studies"], ["SCI", "Science"]].map(([v, t]) => `<option value="${v}" ${(p.subject || "") === v ? "selected" : ""}>${t}</option>`).join("")}</select>${p.subject && !hubSettings().url ? `<p class="meta" style="margin-top:4px">To fill The Vis boxes, enter the Data Hub link and code in Folder Jobs on this iPad.</p>` : ""}</div>
         <div><label class="f" for="pt">Trials per session</label><input id="pt" type="number" min="1" max="60" data-k="trials" value="${p.trials}"></div>
         <div><label class="f" for="po">Order</label><select id="po" data-k="order"><option value="random" ${p.order !== "inorder" ? "selected" : ""}>Mixed up (no target twice in a row)</option><option value="inorder" ${p.order === "inorder" ? "selected" : ""}>In the order listed</option></select></div>
       </div>
@@ -847,6 +848,7 @@ function saveSession(P) {
   P.newMastered = checkMastery(st, P.p);
   persist();
   pcQueue(st, P, entry);
+  hubQueue(st, P, entry);
 }
 function updateReinfCount(P) { const st = DB.students[P.st]; const h = (st.history || []).find(x => x.at === P.savedAt); if (h && P.rf) { h.reinf = P.rf.delivered; h.editedAt = Date.now(); persist(); } }
 /* a target is mastered when it reaches the criterion in N sessions in a row (unprompted) */
@@ -1480,6 +1482,52 @@ async function pcSend() {
   } catch (e) { pcTimer = setTimeout(pcSend, 30000); }
   finally { pcBusy = false; }
 }
+/* ---------- Classroom Data Hub: fills the subject boxes on The Vis ----------
+   Uses the Data Hub link and code saved in Folder Jobs on this device. Card sets with no
+   subject aren't sent. Waits on this device if the internet drops. */
+const HUB_BOX = "cardmatch:hub-outbox";
+function hubSettings() {
+  let v = {}; try { v = JSON.parse(localStorage.getItem("folderjobs:v1") || "{}") || {}; } catch {}
+  const m = String(v.qu || "").trim().match(/^https:\/\/script\.google\.com\/(?:a\/macros\/([A-Za-z0-9.-]+)\/|macros\/)s\/([A-Za-z0-9_-]{20,})\/exec\b/);
+  return { url: m ? `https://script.google.com/${m[1] ? `a/macros/${m[1]}/` : "macros/"}s/${m[2]}/exec` : "", key: String(v.qk || "").trim() };
+}
+const hubRead = () => { try { return JSON.parse(localStorage.getItem(HUB_BOX) || "{}"); } catch { return {}; } };
+const hubWrite = b => { try { localStorage.setItem(HUB_BOX, JSON.stringify(b)); } catch {} };
+let hubBusy = false, hubTimer = null;
+function hubQueue(st, P, entry) {
+  const subject = (P.p && P.p.subject) || "";
+  if (!subject || !(entry.trials || []).length) return;
+  const d = new Date(entry.at), pad = n => String(n).padStart(2, "0");
+  // Errorless-only sessions still count as data taken
+  const total = entry.total || entry.trials.length;
+  const correct = entry.total ? entry.first : entry.trials.filter(t => t.c).length;
+  const id = "ma-" + String(st.id).replace(/[^\w-]/g, "").slice(0, 40) + "-" + entry.at;
+  const box = hubRead();
+  box[id] = { action: "cardmaker", source: "Card Match", id, s: (st.pc || st.name || "").trim(), u: subject,
+    date: `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`, t: entry.name || "",
+    correct, prompted: entry.prompted ? total : 0, total };
+  hubWrite(box);
+  hubSend();
+}
+async function hubSend() {
+  const { url, key } = hubSettings();
+  if (hubBusy || !url || !key) return; hubBusy = true; clearTimeout(hubTimer);
+  try {
+    for (const [id, body] of Object.entries(hubRead())) {
+      const res = await fetch(url, { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" }, body: JSON.stringify({ ...body, key }) });
+      const answer = (await res.text()).trim();
+      // A student who isn't on the Data Hub Roster can't count on The Vis; don't keep retrying
+      if (answer.startsWith("error: not-on-roster")) console.warn(`Card Match: ${body.s} isn't on the Data Hub Roster`);
+      else if (answer !== "ok") throw new Error(answer);
+      const box = hubRead(); delete box[id]; hubWrite(box);
+    }
+  } catch (e) { hubTimer = setTimeout(hubSend, 30000); }
+  finally { hubBusy = false; }
+}
+window.addEventListener("online", hubSend);
+document.addEventListener("visibilitychange", () => { if (!document.hidden) hubSend(); });
+if (Object.keys(hubRead()).length) setTimeout(hubSend, 2000);
+
 window.addEventListener("online", pcSend);
 document.addEventListener("visibilitychange", () => { if (!document.hidden) pcSend(); });
 if (Object.keys(pcRead()).length) setTimeout(pcSend, 1500);
