@@ -79,7 +79,8 @@ td,th{text-align:left;padding:7px 6px;border-bottom:1px solid var(--line);vertic
 .yes{color:var(--good);font-weight:700}.no{color:var(--bad);font-weight:700}
 details summary{cursor:pointer;font-weight:700;min-height:32px}
 .gwrap{overflow-x:auto;-webkit-overflow-scrolling:touch;border-radius:10px}
-.lgraph{display:block;width:100%;min-width:var(--gw,560px);height:auto}
+/* drawn at real size: never blown up past 1:1, shrinks a little on small screens, scrolls when there are many sessions */
+.lgraph{display:block;width:100%;max-width:var(--gw,760px);min-width:var(--gmin,600px);height:auto}
 .lgraph text{font-size:12px;fill:var(--muted);font-family:inherit}
 .lgraph .ax{stroke:var(--ink);stroke-width:1.5}
 .lgraph .grid{stroke:var(--line);stroke-width:1}
@@ -105,7 +106,7 @@ details summary{cursor:pointer;font-weight:700;min-height:32px}
   :root{--surface:#fff;--ink:#000;--muted:#333;--line:#bbb;--accent:#1d4fd6;--good:#137a43}
   .noprint,.top .row,.gtools button,details,.overflow,textarea{display:none !important}
   .panel{border:1px solid #999;break-inside:avoid;margin-bottom:14px}
-  .gwrap{overflow:visible}.lgraph{min-width:0}
+  .gwrap{overflow:visible}.lgraph{min-width:0;max-width:100%}
   .ptitle{display:block}
   body.print-one .gpanel:not(.printme){display:none !important}
 }
@@ -949,10 +950,12 @@ function renderProgress() {
   }).filter(Boolean);
   /* line graph: sessions across, percent up; dashed criterion line; phase lines when the array size changes */
   const graph = (p, pts, title) => {
-    const n = pts.length, step = 46, padL = 46, padR = 24, padT = 34, H = 220, padB = 52;
-    const W = padL + padR + Math.max(n - 1, 1) * step + 20;
+    // a few sessions spread across a normal-width plot; many sessions get 46 units each and scroll
+    const n = pts.length, padL = 46, padR = 24, padT = 34, H = 220, padB = 52, plotMin = 640;
+    const step = n > 1 ? Math.max(46, plotMin / (n - 1)) : 46;
+    const W = Math.round(padL + padR + Math.max(n - 1, 1) * step + 20);
     const x = i => padL + 10 + i * step, y = v => padT + H - (H * v / 100);
-    let g = `<svg viewBox="0 0 ${W} ${padT + H + padB}" class="lgraph" style="--gw:${Math.max(W, 320)}px" role="img" aria-label="${esc(title)}: percent correct across ${n} session${n === 1 ? "" : "s"}">`;
+    let g = `<svg viewBox="0 0 ${W} ${padT + H + padB}" class="lgraph" style="--gw:${W}px;--gmin:${Math.round(W * 0.8)}px" role="img" aria-label="${esc(title)}: percent correct across ${n} session${n === 1 ? "" : "s"}">`;
     for (const v of [0, 25, 50, 75, 100]) g += `<line x1="${padL}" y1="${y(v)}" x2="${W - padR + 10}" y2="${y(v)}" class="grid"/><text x="${padL - 8}" y="${y(v) + 4}" text-anchor="end">${v}%</text>`;
     g += `<line x1="${padL}" y1="${padT - 6}" x2="${padL}" y2="${y(0)}" class="ax"/><line x1="${padL}" y1="${y(0)}" x2="${W - padR + 10}" y2="${y(0)}" class="ax"/>`;
     const cr = p.crit || 80;
